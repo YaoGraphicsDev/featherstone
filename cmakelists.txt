@@ -1,0 +1,55 @@
+cmake_minimum_required(VERSION 3.20)
+project(Featherstone)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Your own project's source/header files (non-recursive or recursive as needed)
+file(GLOB SOURCES *.cpp)
+file(GLOB HEADERS *.h *.hpp)
+
+# Combine everything
+set(ALL_SOURCES ${SOURCES} ${HEADERS})
+
+# Create the executable
+add_executable(${PROJECT_NAME} ${ALL_SOURCES})
+
+# Include Eigen
+set(EIGEN3_INCLUDE_DIR "" CACHE PATH "Path to Eigen3 include directory")
+if(NOT EXISTS "${EIGEN3_INCLUDE_DIR}/Eigen/Core")
+    message(FATAL_ERROR "Eigen not found in ${EIGEN3_INCLUDE_DIR}. Please set -DEIGEN3_INCLUDE_DIR=/path/to/eigen")
+endif()
+target_include_directories(${PROJECT_NAME} PRIVATE ${EIGEN3_INCLUDE_DIR})
+
+
+# Set the path to your third_party directory
+set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/third_party)
+
+# raylib headers and library
+find_path(RAYLIB_INCLUDE_DIR raylib.h
+    PATHS ${THIRD_PARTY_DIR}/raylib/include
+    NO_DEFAULT_PATH
+)
+find_library(RAYLIB_LIBRARY
+    NAMES raylib
+    PATHS ${THIRD_PARTY_DIR}/raylib/lib
+    NO_DEFAULT_PATH
+)
+if(NOT RAYLIB_INCLUDE_DIR OR NOT RAYLIB_LIBRARY)
+    message(FATAL_ERROR "raylib not found in third_party directory!")
+endif()
+target_include_directories(${PROJECT_NAME} PRIVATE ${RAYLIB_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIBRARY})
+target_link_libraries(${PROJECT_NAME} PRIVATE winmm)
+
+# Vulkan, provide glm
+find_package(Vulkan REQUIRED)
+target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
+
+# Copy resources directory to build directory
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/resources
+    ${CMAKE_BINARY_DIR}/resources
+    COMMENT "Copying resources directory"
+)

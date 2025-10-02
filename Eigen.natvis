@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <!-- Matrix6<Col> - This matches the template alias -->
+  <Type Name="Eigen::Matrix&lt;float,6,*,-1,6,*&gt;">
+    <DisplayString>Matrix6 (6 x {m_storage.m_cols})</DisplayString>
+    <Expand>
+      <Item Name="Rows">6</Item>
+      <Item Name="Columns">m_storage.m_cols</Item>
+      <Item Name="Total Elements">6 * m_storage.m_cols</Item>
+      <ArrayItems>
+        <Size>6 * m_storage.m_cols</Size>
+        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- MVector, FVector - Eigen::Matrix<float, 6, 1> -->
+  <Type Name="Eigen::Matrix&lt;float,6,1,0,6,1&gt;">
+    <DisplayString>MVector/FVector (6 x 1)</DisplayString>
+    <Expand>
+      <Item Name="Rows">6</Item>
+      <Item Name="Columns">1</Item>
+      <ArrayItems>
+        <Size>6</Size>
+        <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- MTransform, FTransform, Dyad - Eigen::Matrix<float, 6, 6> -->
+  <Type Name="Eigen::Matrix&lt;float,6,6,0,6,6&gt;">
+    <DisplayString>MTransform/FTransform/Dyad (6 x 6)</DisplayString>
+    <Expand>
+      <Item Name="Rows">6</Item>
+      <Item Name="Columns">6</Item>
+      <ArrayItems>
+        <Size>36</Size>
+        <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- MCoordinates, FCoordinate - Eigen::Matrix<float, -1, 1, 0, 6, 1> -->
+  <Type Name="Eigen::Matrix&lt;float,-1,1,0,6,1&gt;">
+    <DisplayString>MCoordinates/FCoordinate ({m_storage.m_size} x 1)</DisplayString>
+    <Expand>
+      <Item Name="Size">m_storage.m_size</Item>
+      <Item Name="Max Size">6</Item>
+      <ArrayItems>
+        <Size>m_storage.m_size</Size>
+        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- JDyad - Eigen::Matrix<float, -1, -1> -->
+  <Type Name="Eigen::Matrix&lt;float,-1,-1,0,-1,-1&gt;">
+    <DisplayString>JDyad ({m_storage.m_rows} x {m_storage.m_cols})</DisplayString>
+    <Expand>
+      <Item Name="Rows">m_storage.m_rows</Item>
+      <Item Name="Columns">m_storage.m_cols</Item>
+      <Item Name="Total Elements">m_storage.m_rows * m_storage.m_cols</Item>
+      <ArrayItems>
+        <Size>m_storage.m_rows * m_storage.m_cols</Size>
+        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- MSubspace - Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> -->
+  <Type Name="Eigen::Matrix&lt;float,6,-1,0,6,6&gt;">
+    <DisplayString>MSubspace (6 x {m_storage.m_cols})</DisplayString>
+    <Expand>
+      <Item Name="Rows">6</Item>
+      <Item Name="Columns">m_storage.m_cols</Item>
+      <Item Name="Total Elements">6 * m_storage.m_cols</Item>
+      <ArrayItems>
+        <Size>6 * m_storage.m_cols</Size>
+        <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- Generic fallback for any float matrix -->
+  <Type Name="Eigen::Matrix&lt;float,*,*,*,*,*&gt;">
+    <DisplayString>Eigen::Matrix&lt;float&gt; ({m_storage.m_rows} x {m_storage.m_cols})</DisplayString>
+    <Expand>
+      <Item Name="Rows">m_storage.m_rows</Item>
+      <Item Name="Columns">m_storage.m_cols</Item>
+      <Item Name="Total Elements">m_storage.m_rows * m_storage.m_cols</Item>
+      <ArrayItems>
+        <Size>m_storage.m_rows * m_storage.m_cols</Size>
+        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>
