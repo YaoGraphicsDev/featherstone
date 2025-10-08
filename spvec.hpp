@@ -14,9 +14,13 @@ typedef Matrix6<6> MTransform;
 typedef Matrix6<6> FTransform;
 typedef Matrix6<6> Dyad; // Dyadic that maps motion space vector to force space
 typedef Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> MSubspace;
+typedef Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> FSubspace;
 typedef Eigen::Matrix<float, Eigen::Dynamic, 1, 0, 6, 1> MCoordinates;
 typedef Eigen::Matrix<float, Eigen::Dynamic, 1, 0, 6, 1> FCoordinates;
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> JDyad; // Joint space dyad. A typical instance being the joint space inertia matrix H
+typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> GPower; // Generalized power. Dot product between force and motion. Power and JDyad are in the same space.
+typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> Unitless; // Generalized power. Dot product between force and motion. Power and JDyad are in the same space.
+
 
 inline Eigen::Matrix3f cross_mat(const Eigen::Vector3f& r) {
 	Eigen::Matrix3f M;
@@ -90,5 +94,70 @@ inline Dyad transform_dyad(const MTransform& X_a_b, const Dyad& Ia) {
 inline Dyad transform_dyad2(const MTransform& X_b_a, const Dyad& Ia) {
 	return transpose_transform(X_b_a) * Ia * X_b_a;
 }
+
+struct BlockAccess {
+	typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> MType;
+
+	BlockAccess(const std::vector<int>& block_sizes) : BlockAccess(block_sizes, block_sizes) {}
+
+	BlockAccess(const std::vector<int>& row_block_sizes, const std::vector<int>& col_block_sizes) {
+		// Calculate cumulative offsets for rows and columns
+		std::vector<int> row_offsets = offsets(row_block_sizes);
+		std::vector<int> col_offsets = offsets(col_block_sizes);
+
+		int num_row_blocks = row_block_sizes.size();
+		int num_col_blocks = col_block_sizes.size();
+		blocks.resize(num_row_blocks, std::vector<BlockRange>(num_col_blocks));
+
+		// Create block ranges for all combinations
+		for (int i = 0; i < num_row_blocks; ++i) {
+			for (int j = 0; j < num_col_blocks; ++j) {
+				blocks[i][j] = BlockRange{
+					row_offsets[i],
+					col_offsets[j],
+					row_block_sizes[i],
+					col_block_sizes[j]
+				};
+			}
+		}
+	}
+
+	Eigen::Block<MType> block(MType& M, int row, int col) {
+		BlockRange r = blocks[row][col];
+		assert(r.start_row + r.rows <= M.rows());
+		assert(r.start_col + r.cols <= M.cols());
+		return M.block(r.start_row, r.start_col, r.rows, r.cols);
+	}
+
+	int total_rows() {
+		return blocks.back().back().start_row + blocks.back().back().rows;
+	}
+
+	int total_cols() {
+		return blocks.back().back().start_col + blocks.back().back().cols;
+	}
+
+	std::vector<int> offsets(const std::vector<int>& sizes) {
+		if (sizes.empty()) {
+			return {};
+		}
+
+		std::vector<int> offsets(sizes.size(), 0);
+		for (size_t i = 0; i < sizes.size() - 1; ++i) {
+			offsets[i + 1] = offsets[i] + sizes[i];
+		}
+		return offsets;
+	}
+
+
+	struct BlockRange {
+		int start_row;
+		int start_col;
+		int rows;
+		int cols;
+	};
+	std::vector<std::vector<BlockRange>> blocks;
+	
+};
 
 };

@@ -25,34 +25,47 @@ glm::mat3 m3(Matrix3f M) {
 
 int main(void)
 {
-    std::shared_ptr<SPD::Cuboid> cube = std::make_shared<SPD::Cuboid>(Vector3f(0.3f, 1.3f, 0.15f));
+    float hx = 0.2f;
+    float hy = 1.2f;
+    float hz = 0.15f;
+    std::shared_ptr<SPD::Cuboid> cube = std::make_shared<SPD::Cuboid>(Vector3f(hx, hy, hz));
 
-    SPD::ArticulatedBody art;
+    float gap = 0.1f;
+    float height = 3.0f;
+
+    SPD::ArticulatedBody art(nullptr, Quaternionf::Identity(), Vector3f(0.0f, height, 0.0f));
     art.set_gravity(Vector3f(0.0f, -10.0f, 0.0f));
     auto b1 = art.add_body(
         cube,
-        Quaternionf(AngleAxisf(glm::radians(90.0f), Vector3f(0.0f, 0.0f, 1.0f))),
-        { 0.0f, 4.0f, 0.0f });
+        Quaternionf::Identity(),
+        { 0.0f, hy + height, 0.0f });
     auto b2 = art.add_body(
         cube,
-        Quaternionf(AngleAxisf(glm::radians(30.0f), Vector3f(0.0f, 0.0f, 1.0f))),
-        { 2.1f, 3.0f, 0.5f });
+        Quaternionf(AngleAxisf(glm::radians(90.0f), -Vector3f::UnitZ())),
+        { hy, 2.0f * hy + height, -(2.0f * hz + gap) });
     auto b3 = art.add_body(
         cube,
-        Quaternionf(AngleAxisf(glm::radians(30.0f), Vector3f(0.0f, 0.0f, 1.0f))),
-        { 2.5f, 2.4f, 1.0f });
-    auto j1 = art.add_constraint(SPD::ArticulatedBody::ConstraintType::Prismatic,
+        Quaternionf::Identity(),
+        { 2.0f * hy, hy + height, -(4.0f * hz + 2.0f * gap) });
+    auto j1 = art.add_constraint(SPD::ArticulatedBody::ConstraintType::Revolute,
         art.base(), b1,
-        AngleAxisf(glm::radians(90.0f), Vector3f(0.0f, 1.0f, 0.0f)).toRotationMatrix(),
-        { -1.5f, 4.0f, 0.0f });
+        Matrix3f::Identity(),
+        Vector3f(0.0f, -gap, 0.0f));
     auto j2 = art.add_constraint(SPD::ArticulatedBody::ConstraintType::Revolute,
         b1, b2,
-        AngleAxisf(glm::radians(30.0f), Vector3f(0.0f, 0.0f, 1.0f)).toRotationMatrix(),
-        Vector3f(0.0f, -1.3f, 0.25f));
+        Matrix3f::Identity(),
+        Vector3f(0.0f, hy, -(hz + 0.5f * gap)));
     auto j3 = art.add_constraint(SPD::ArticulatedBody::ConstraintType::Revolute,
         b2, b3,
-        AngleAxisf(glm::radians(45.0f), Vector3f(0.0f, 0.0f, 1.0f)).toRotationMatrix(),
-        Vector3f(0.0f, -0.5f, 0.25f));
+        Matrix3f::Identity(),
+        Vector3f(0.0f, hy, -(hz + 0.5f * gap)));
+
+    // The joint that creates loop
+    auto j4 = art.add_constraint(SPD::ArticulatedBody::ConstraintType::Prismatic,
+        art.base(), b3,
+        Quaternionf(AngleAxisf(glm::radians(90.0f), Vector3f::UnitY())).toRotationMatrix(),
+        Vector3f(2.0f * hy, -gap, -(4.0f * hz + 2.0 * gap)));
+
     art.build_tree();
     
     // renderer
@@ -63,7 +76,7 @@ int main(void)
     size_t k1 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(b1->shape)->half_dims));
     size_t k2 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(b2->shape)->half_dims));
     size_t k3 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(b3->shape)->half_dims));
-    size_t ground = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, {5.0f, 0.5f, 5.0f});
+    size_t ground = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, { 5.0f, 0.5f, 5.0f }, glm::identity<glm::quat>(), { 0.0f, -0.5f, 0.0f });
 
     auto update_world = [&](float frame_dt, size_t frame_id) {
         // art.set_constraint_status(j1, { glm::sin((float)frame_id / 120.0f * glm::two_pi<float>()) });
@@ -79,7 +92,9 @@ int main(void)
 
         //art.move_bodies();
 
-        art.step(1.0f / 60.0f);
+        j4->taue(0, 0) = 50.0f;
+
+        art.step(1.0f / 120.0f);
 
         renderer.update_body(k1, q(b1->rotation), v3(b1->translation));
         renderer.update_body(k2, q(b2->rotation), v3(b2->translation));
@@ -96,6 +111,7 @@ int main(void)
         draw_joint(j1);
         draw_joint(j2);
         draw_joint(j3);
+        draw_joint(j4);
     };
 
     //RigidWorldRenderer::Options run_options;

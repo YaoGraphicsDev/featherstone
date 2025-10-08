@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <list>
 
 #include "Eigen/Core"
 #include "glm/gtc/quaternion.hpp"
@@ -19,7 +20,7 @@ struct ArticulatedBody {
 		std::shared_ptr<Shape> shape = nullptr;
 
 		// values determined by the time constraint is set
-		std::shared_ptr<Constraint> parent_joint = nullptr;
+		std::list<std::shared_ptr<Constraint>> parent_joints; // loop joints will get picked out when building tree. There will only be one parent joint per body left after build_tree() is done
 		std::vector<std::shared_ptr<Constraint>> children_joints;
 		Dyad I = Dyad::Identity();
 
@@ -76,7 +77,9 @@ struct ArticulatedBody {
 		MTransform X_0_J0; // transform from body 0 space to joint space 0
 		MTransform X_1_J1; // transform from body 1 space to joint space 1
 		MTransform X_J0_J1; // transform from joint 0 to joint space 1  TODO: didnt get updated properly
-		MSubspace S;
+		const MSubspace* S; // motion subspace
+		const FSubspace* T; // constaint force subspace
+		const FSubspace* Ta; // active force subspace
 		MCoordinates q;
 		MCoordinates dq;
 		MCoordinates ddq;
@@ -122,40 +125,74 @@ struct ArticulatedBody {
 	// recursive newton-euler algo
 	void compute_bias_RNEA();
 
-	void configure_H();
-
 	void solve_ddq();
 
 	// TODO: temporary
-	// void apply_velo_friction();
+	void joint_damping();
 
-	Eigen::Ref<JDyad> H_block(int row, int col);
+	void clear_joint_forces();
 
 	void compute_H(); // joint space inertia matrix
 
-	template<typename F, typename T>
-	std::vector<const F*> field_array(const std::vector<std::shared_ptr<T>>& arr, size_t offset) {
-		std::vetor<const F*> 
-	}
+	GPower compute_delta(ConstraintType type, const MTransform& X); // positional error of loop joints
+
+	void compute_K_k(); // joint space acceleration constraint parameters
+
+	// joint motion subspace
+	const std::map<ConstraintType, MSubspace> S = {
+		{ConstraintType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
+		{ConstraintType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
+	}; 
+	// joint active force subspace
+	const std::map<ConstraintType, FSubspace> Ta = {
+		{ConstraintType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
+		{ConstraintType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
+	};
+	// joint constraint force subspace
+	const std::map<ConstraintType, FSubspace> T = {
+		{ConstraintType::Prismatic, subspace({
+			{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }})},
+		{ConstraintType::Revolute, subspace({
+			{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f }})},
+	};
+
+	Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> subspace(std::initializer_list<std::array<float, 6>> columns);
 
 	std::vector<std::shared_ptr<Body>> bodies;
-	std::vector<std::shared_ptr<Constraint>> joints;
-	std::vector<int> lambda;
+	std::vector<std::shared_ptr<Constraint>> tree_joints;
+	std::vector<std::shared_ptr<Constraint>> loop_joints;
+ 	std::vector<int> lambda;
 	std::vector<std::set<int>> mu;
 	std::vector<std::set<int>> nu;
 
 	std::vector<MTransform> X_0_; // Set by RNEA. See RNEA for details
 	std::vector<MTransform> X_Li_;
+	std::vector<MTransform> XP; // loop joints' locations in predecessor body
+	std::vector<MTransform> XS; // loop joints' locations in sucessor body
 
 	Eigen::Vector3f gravity;
+
+	std::vector<MVector> a_vp; // velocity product. Acceleration of bodies if tree joint accelerations (ddq) are zero
+
 	JDyad H; // joint space inertia matrix H
-	struct HBlockRange {
-		int start_row;
-		int start_col;
-		int rows;
-		int cols;
-	};
-	std::vector<std::vector<HBlockRange>> H_blocks;
+	std::shared_ptr<BlockAccess> H_acc = nullptr;
+
+	GPower K;
+	std::shared_ptr<BlockAccess> K_acc;
+
+	GPower _k;
+	std::shared_ptr<BlockAccess> k_acc;
+
+	const float alpha = 50.0f;
+	const float beta = 50.0f;
 };
 
 }

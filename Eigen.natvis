@@ -43,20 +43,20 @@
 
   <!-- MCoordinates, FCoordinate - Eigen::Matrix<float, -1, 1, 0, 6, 1> -->
   <Type Name="Eigen::Matrix&lt;float,-1,1,0,6,1&gt;">
-    <DisplayString>MCoordinates/FCoordinate ({m_storage.m_size} x 1)</DisplayString>
+    <DisplayString>MCoordinates/FCoordinate ({m_storage.m_rows} x 1)</DisplayString>
     <Expand>
-      <Item Name="Size">m_storage.m_size</Item>
+      <Item Name="Size">m_storage.m_rows</Item>
       <Item Name="Max Size">6</Item>
       <ArrayItems>
-        <Size>m_storage.m_size</Size>
-        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
+        <Size>m_storage.m_rows</Size>
+        <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>
 
   <!-- JDyad - Eigen::Matrix<float, -1, -1> -->
   <Type Name="Eigen::Matrix&lt;float,-1,-1,0,-1,-1&gt;">
-    <DisplayString>JDyad ({m_storage.m_rows} x {m_storage.m_cols})</DisplayString>
+    <DisplayString>JDyad/Power/Unitless ({m_storage.m_rows} x {m_storage.m_cols})</DisplayString>
     <Expand>
       <Item Name="Rows">m_storage.m_rows</Item>
       <Item Name="Columns">m_storage.m_cols</Item>
