@@ -4,54 +4,65 @@ project(Featherstone)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Your own project's source/header files (non-recursive or recursive as needed)
-file(GLOB SOURCES *.cpp)
-file(GLOB HEADERS *.h *.hpp)
+# Build configuration
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Combine everything
-set(ALL_SOURCES ${SOURCES} ${HEADERS})
-
-# Create the executable
-add_executable(${PROJECT_NAME} ${ALL_SOURCES})
-
-# Include Eigen
+# Eigen and GLM
 set(EIGEN3_INCLUDE_DIR "" CACHE PATH "Path to Eigen3 include directory")
-if(NOT EXISTS "${EIGEN3_INCLUDE_DIR}/Eigen/Core")
-    message(FATAL_ERROR "Eigen not found in ${EIGEN3_INCLUDE_DIR}. Please set -DEIGEN3_INCLUDE_DIR=/path/to/eigen")
+set(GLM_INCLUDE_DIR "" CACHE PATH "Path to glm include directory")
+
+# Validate Eigen path
+if("${EIGEN3_INCLUDE_DIR}" STREQUAL "")
+    message(FATAL_ERROR "EIGEN3_INCLUDE_DIR not set. Please provide path to Eigen3 include directory")
+else()
+    if(NOT EXISTS "${EIGEN3_INCLUDE_DIR}")
+        message(FATAL_ERROR "EIGEN3_INCLUDE_DIR path does not exist: ${EIGEN3_INCLUDE_DIR}")
+    endif()
+    if(NOT EXISTS "${EIGEN3_INCLUDE_DIR}/Eigen/Core")
+        message(FATAL_ERROR "EIGEN3_INCLUDE_DIR is invalid. Could not find Eigen/Core in: ${EIGEN3_INCLUDE_DIR}")
+    endif()
+    message(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
 endif()
-target_include_directories(${PROJECT_NAME} PRIVATE ${EIGEN3_INCLUDE_DIR})
+
+# Validate glm path
+if("${GLM_INCLUDE_DIR}" STREQUAL "")
+    message(FATAL_ERROR "GLM_INCLUDE_DIR not set. Please provide path to glm include directory")
+else()
+    if(NOT EXISTS "${GLM_INCLUDE_DIR}")
+        message(FATAL_ERROR "GLM_INCLUDE_DIR path does not exist: ${GLM_INCLUDE_DIR}")
+    endif()
+    if(NOT EXISTS "${GLM_INCLUDE_DIR}/glm/glm.hpp")
+        message(FATAL_ERROR "GLM_INCLUDE_DIR is invalid. Could not find glm/glm.hpp in: ${GLM_INCLUDE_DIR}")
+    endif()
+    message(STATUS "glm found: ${GLM_INCLUDE_DIR}")
+endif()
 
 
 # Set the path to your third_party directory
-set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/third_party)
+# set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/third_party)
+
+add_subdirectory(third_party)
+add_subdirectory(featherstone)
+add_subdirectory(renderer)
+add_subdirectory(demos)
 
 # raylib headers and library
-find_path(RAYLIB_INCLUDE_DIR raylib.h
-    PATHS ${THIRD_PARTY_DIR}/raylib/include
-    NO_DEFAULT_PATH
-)
-find_library(RAYLIB_LIBRARY
-    NAMES raylib
-    PATHS ${THIRD_PARTY_DIR}/raylib/lib
-    NO_DEFAULT_PATH
-)
-if(NOT RAYLIB_INCLUDE_DIR OR NOT RAYLIB_LIBRARY)
-    message(FATAL_ERROR "raylib not found in third_party directory!")
-endif()
-target_include_directories(${PROJECT_NAME} PRIVATE ${RAYLIB_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIBRARY})
-target_link_libraries(${PROJECT_NAME} PRIVATE winmm)
+# find_path(RAYLIB_INCLUDE_DIR raylib.h
+#     PATHS ${THIRD_PARTY_DIR}/raylib/include
+#     NO_DEFAULT_PATH
+# )
+# find_library(RAYLIB_LIBRARY
+#     NAMES raylib
+#     PATHS ${THIRD_PARTY_DIR}/raylib/lib
+#     NO_DEFAULT_PATH
+# )
+# if(NOT RAYLIB_INCLUDE_DIR OR NOT RAYLIB_LIBRARY)
+#     message(FATAL_ERROR "raylib not found in third_party directory!")
+# endif()
+# target_include_directories(${PROJECT_NAME} PRIVATE ${RAYLIB_INCLUDE_DIR})
+# target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIBRARY})
+# target_link_libraries(${PROJECT_NAME} PRIVATE winmm)
 
-# Vulkan, provide glm
-find_package(Vulkan REQUIRED)
-target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
 
-target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
-
-# Copy resources directory to build directory
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/resources
-    ${CMAKE_BINARY_DIR}/resources
-    COMMENT "Copying resources directory"
-)

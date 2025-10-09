@@ -1,0 +1,53 @@
+# Demos directory
+
+# Function to create an demo executable
+function(add_demo demo_name source_file)
+    # Create executable
+    add_executable(${demo_name} ${source_file})
+    
+    # Include directories from libraries AND dependencies
+    target_include_directories(${demo_name} 
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
+            ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
+            ${EIGEN3_INCLUDE_DIR}
+            ${GLM_INCLUDE_DIR}
+            ${RAYLIB_INCLUDE_DIR} # raylib headers for demos
+            ${BULLET_INCLUDE_DIR} 
+    )
+    
+    # Debug: Print what we're linking against
+    #message(STATUS "Linking ${example_name} with BulletCollision: ${BULLET_COLLISION_LIB}")
+    #get_target_property(BULLET_COLLISION_LOCATION ${BULLET_COLLISION_LIB} IMPORTED_LOCATION)
+    #message(STATUS "BulletCollision location: ${BULLET_COLLISION_LOCATION}")
+
+    # Link against our libraries AND raylib
+    target_link_libraries(${demo_name} 
+        PRIVATE
+            featherstone
+            renderer
+            ${RAYLIB_LIBRARY} # raylib for demos that use it directly
+            ${BULLET_COLLISION_LIBRARY}
+            ${BULLET_LINEARMATH_LIBRARY}
+    )
+    
+    # Make demos depend on shader copying
+    # add_dependencies(${demo_name} ${SHADER_COPY_TARGET})
+    
+    # Set output directory
+    set_target_properties(${demo_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/demos
+    )
+endfunction()
+
+# Find all demo source files
+file(GLOB DEMO_SOURCES "*.cpp")
+
+# Create an demo for each source file
+foreach(demo_source ${DEMO_SOURCES})
+    get_filename_component(demo_name ${demo_source} NAME_WE)
+    add_demo(${demo_name} ${demo_source})
+    list(APPEND ALL_DEMOS ${demo_name})
+endforeach()
+
+# add_custom_target(demos ALL DEPENDS ${ALL_DEMOS})

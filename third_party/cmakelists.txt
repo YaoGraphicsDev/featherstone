@@ -1,0 +1,46 @@
+# Find and configure raylib
+find_path(RAYLIB_INCLUDE_DIR
+    NAMES raylib.h
+    PATHS ${CMAKE_CURRENT_SOURCE_DIR}/raylib/include
+    REQUIRED
+)
+# Find raylib library
+find_library(RAYLIB_LIBRARY
+    NAMES raylib
+    PATHS ${CMAKE_CURRENT_SOURCE_DIR}/raylib/lib
+    REQUIRED
+)
+# Set raylib variables for parent scope
+set(RAYLIB_INCLUDE_DIR ${RAYLIB_INCLUDE_DIR} PARENT_SCOPE)
+set(RAYLIB_LIBRARY ${RAYLIB_LIBRARY} PARENT_SCOPE)
+
+
+# Find and configure bullet collision
+find_path(BULLET_INCLUDE_DIR
+    NAMES btBulletCollisionCommon.h
+    PATHS ${CMAKE_CURRENT_SOURCE_DIR}/bullet/include
+    REQUIRED
+)
+
+# === 2. Manually specify debug/release library paths ===
+set(BULLET_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bullet/lib")
+
+set(BULLET_COLLISION_LIBRARY_DEBUG "${BULLET_LIB_DIR}/BulletCollision_Debug.lib")
+set(BULLET_COLLISION_LIBRARY_RELEASE "${BULLET_LIB_DIR}/BulletCollision.lib")
+
+set(BULLET_LINEARMATH_LIBRARY_DEBUG "${BULLET_LIB_DIR}/LinearMath_Debug.lib")
+set(BULLET_LINEARMATH_LIBRARY_RELEASE "${BULLET_LIB_DIR}/LinearMath.lib")
+
+# === 3. Combine them with generator expressions ===
+set(BULLET_COLLISION_LIBRARY
+    "$<$<CONFIG:Debug>:${BULLET_COLLISION_LIBRARY_DEBUG}>"
+    "$<$<NOT:$<CONFIG:Debug>>:${BULLET_COLLISION_LIBRARY_RELEASE}>"
+)
+set(BULLET_LINEARMATH_LIBRARY
+    "$<$<CONFIG:Debug>:${BULLET_LINEARMATH_LIBRARY_DEBUG}>"
+    "$<$<NOT:$<CONFIG:Debug>>:${BULLET_LINEARMATH_LIBRARY_RELEASE}>"
+)
+
+set(BULLET_INCLUDE_DIR ${BULLET_INCLUDE_DIR} PARENT_SCOPE)
+set(BULLET_COLLISION_LIBRARY ${BULLET_COLLISION_LIBRARY} PARENT_SCOPE)
+set(BULLET_LINEARMATH_LIBRARY ${BULLET_LINEARMATH_LIBRARY} PARENT_SCOPE)
