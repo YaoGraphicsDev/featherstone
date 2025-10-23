@@ -26,9 +26,9 @@ void ContactSolver::initialize(
 		const RigidBody& b0 = *bodies[id0];
 		const RigidBody& b1 = *bodies[id1];
 		vcs[m].restitution_coeff = std::min(b0.restitution_coeff, b1.restitution_coeff);
-		vcs[m].restitution_coeff = 0.4f;
+		// vcs[m].restitution_coeff = 0.2f;
 		vcs[m].friction_coeff = std::sqrt(b0.friction_coeff * b1.friction_coeff);
-		vcs[m].friction_coeff = 0.45f;
+		// vcs[m].friction_coeff = 0.4f;
 		
 		int n_cps = manifold->getNumContacts();
 		vcs[m].cps.resize(n_cps);
