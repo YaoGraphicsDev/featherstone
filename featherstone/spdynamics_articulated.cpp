@@ -176,7 +176,7 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
 	// Transform from C (com space) to J (joint space)
 	MTransform X_C_J = m_transform(Eigen::Matrix3f::Identity(), c->bb1, c->bt1);
 	if (b1->shape) {
-		b1->I = std::move(transform_dyad(X_C_J, b1->shape->sp_Ic));//  dual_transform(X_C_J) * b1->shape->sp_Ic* inverse_transform(X_C_J);
+		b1->I = std::move(transform_dyad(X_C_J, b1->shape->Ic6));//  dual_transform(X_C_J) * b1->shape->sp_Ic* inverse_transform(X_C_J);
 	}
 
 	return c;

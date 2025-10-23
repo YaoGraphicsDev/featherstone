@@ -84,15 +84,12 @@ void RigidWorld::add_body(std::shared_ptr<RigidBody> body) {
 static int step_count = 0;
 
 void RigidWorld::step(float dt) {
-	std::cout << "step = " << step_count++ << std::endl;
-
 	collide();
 	integrate_velocity(dt);
 
 	contact_solver->initialize(bodies, collision_world->dispatcher);
 	contact_solver->warm_start();
 	for (uint32_t i = 0; i < max_velocity_solve_iterations; ++i) {
-		std::cout << "\titeration = " << i << std::endl;
 		contact_solver->solve_velocity();
 	}
 
@@ -147,18 +144,15 @@ void RigidWorld::integrate_velocity(float dt) {
 
 		FVector g6;
 		g6 << Vector3f::Zero(), gravity;
-		// g6 = dual_transform(m_transform(Matrix3f::Identity(), b->bases, Vector3f::Zero())) * g6;
 		FVector fe_com = b->fe + g6 * b->mass;
 		b->fe = FVector::Zero();
 
 		MTransform Xr = m_transform(Matrix3f::Identity(), b->rotation.toRotationMatrix(), Vector3f::Zero()); // a rotation to accomodate inertia's rotation
-		Dyad I = transform_dyad2(Xr, b->shape->sp_Ic);
-		// FVector bias = dual_transform(derivative_cross(b->v)) * (b->mass * b->shape->sp_Ic) * b->v;
-		FVector bias = dual_transform(derivative_cross(b->v)) * (b->mass * I) * b->v;
-		MVector a = transform_inv_dyad2(Xr, b->shape->sp_inv_Ic) * b->inv_mass * (fe_com - bias);
-		// MTransform X_ortho = m_transform(b->bases, Matrix3f::Identity(), Vector3f::Zero());
-		MVector v_ortho = /*X_ortho */ b->v;
-		MVector a_ortho = /*X_ortho */ a;
+		Dyad I = transform_dyad2(Xr, b->Ic);
+		FVector bias = dual_transform(derivative_cross(b->v)) * I * b->v;
+		MVector a = transform_inv_dyad2(Xr, b->inv_Ic) * (fe_com - bias);
+		MVector v_ortho = b->v;
+		MVector a_ortho = a;
 
 		Vector3f v_ang = v_ortho.head<3>();
 		Vector3f v_linear = v_ortho.tail<3>();
@@ -186,14 +180,35 @@ void RigidWorld::integrate_position(float dt) {
 		b->translation += v_linear * dt;
 
 		// implicit euler on ortho angular velocity
+		
+		// TODO:
+		// follows this answer https://math.stackexchange.com/a/5035902
+		//Vector3f v_ang = b->v.head<3>();
+		//Quaternionf q = b->rotation;
+		//Quaternionf dq = q * Quaternionf(0.0f, v_ang.x(), v_ang.y(), v_ang.z());
+		//dq.coeffs() *= 0.5f;
+		//Quaternionf dqdt;
+		//dqdt.coeffs() = dq.coeffs() * dt;
+		//q.coeffs() = q.coeffs() + dqdt.coeffs();
+		//b->rotation = q;
+		//b->rotation.normalize();
+
+		// calculation given by deepseek. Works great, but doesnt align with the stackoverflow answer
+		//Vector3f v_ang = b->v.head<3>();
+		//Quaternionf omega_q(0.0f, v_ang.x(), v_ang.y(), v_ang.z());
+		//Quaternionf dq = (omega_q * b->rotation);
+		//dq.coeffs() *= 0.5f * dt;
+		//b->rotation.coeffs() += dq.coeffs();
+		//b->rotation.normalize();
+
+		// Not accurate but the the easiest to understand
 		Vector3f v_ang = b->v.head<3>();
-		Quaternionf q = b->rotation;
-		Quaternionf dq = q * Quaternionf(0.0f, v_ang.x(), v_ang.y(), v_ang.z());
-		dq.coeffs() *= 0.5f;
-		Quaternionf dqdt;
-		dqdt.coeffs() = dq.coeffs() * dt;
-		q.coeffs() = q.coeffs() + dqdt.coeffs();
-		b->rotation = q;
+		float angle = v_ang.norm() * dt;
+		if (angle > 1e-8f) {
+			Vector3f axis = v_ang.normalized();
+			Quaternionf delta_q(AngleAxisf(angle, axis));
+			b->rotation = delta_q * b->rotation;
+		}
 		b->rotation.normalize();
 	}
 }
@@ -207,72 +222,6 @@ float RigidWorld::new_penetration(
 	Vector3f p1 = b1.rotation.toRotationMatrix() * local_p1 + b1.translation;
 	float proj = n_01.dot((p0 - p1));
 	return -proj;
-}
-
-Eigen::Vector3f RigidWorld::find_penetration(const btCollisionObject* obj0, const btCollisionObject* obj1) {
-	//btCollisionObjectWrapper obj0_wrap(nullptr, obj0->getCollisionShape(), obj0, obj0->getWorldTransform(), -1, -1);
-	//btCollisionObjectWrapper obj1_wrap(nullptr, obj1->getCollisionShape(), obj1, obj1->getWorldTransform(), -1, -1);
-	//// Get the collision algorithm for this pair
-	//btCollisionAlgorithm* algo = collision_world->dispatcher->findAlgorithm(&obj0_wrap, &obj1_wrap, nullptr, BT_CONTACT_POINT_ALGORITHMS);
-	//assert(algo);
-	//// Create temporary manifold storage
-	//btManifoldResult manifold_result(&obj0_wrap, &obj1_wrap);
-	//btDispatcherInfo dispatchInfo;
-	//dispatchInfo.m_dispatchFunc = btDispatcherInfo::DISPATCH_DISCRETE;
-	////dispatchInfo.m_timeOfImpact = 1.0f;
-	//dispatchInfo.m_useContinuous = false;
-	////dispatchInfo.m_debugDraw = nullptr;
-	////dispatchInfo.m_enableSatConvex = false;
-	////dispatchInfo.m_enableSPU = true;
-	////dispatchInfo.m_useEpa = true;
-	//dispatchInfo.m_allowedCcdPenetration = 0.0f;
-	//// Perform full narrowphase collision detection
-	//algo->processCollision(&obj0_wrap, &obj1_wrap, dispatchInfo, &manifold_result);
-	//btPersistentManifold* manifold = manifold_result.getPersistentManifold();
-
-	btGjkEpaPenetrationDepthSolver epaSolver;
-	btVoronoiSimplexSolver simplexSolver;
-
-	const btConvexShape* convex0 = nullptr;
-	const btConvexShape* convex1 = nullptr;
-	const btCollisionShape* shape0 = obj0->getCollisionShape();
-	const btCollisionShape* shape1 = obj1->getCollisionShape();
-	if (shape0->isConvex()) {
-		convex0 = static_cast<const btConvexShape*>(shape0);
-	}
-	else {
-		assert(false);
-		return Vector3f::Zero();
-	}
-	if (shape1->isConvex()) {
-		convex1 = static_cast<const btConvexShape*>(shape1);
-	}
-	else {
-		assert(false);
-		return Vector3f::Zero();
-	}
-
-	if (!convex0 || !convex1) {
-		// One or both shapes are not convex
-		assert(false);
-		return Vector3f::Zero();
-	}
-	const btTransform& transform0 = obj0->getWorldTransform();
-	const btTransform& transform1 = obj1->getWorldTransform();
-
-	btVector3 penetration_vec;
-	btVector3 witness0, witness1;
-
-	if (epaSolver.calcPenDepth(
-		simplexSolver, convex0, convex1,
-		transform0, transform1,
-		penetration_vec, witness0, witness1, nullptr)) {
-		Vector3f vec = EV3(witness0) - EV3(witness1); // TODO: is this a good direction to solve penetration? probably not
-		return vec;
-	}
-	else {
-		return Vector3f::Zero();
-	}
 }
 
 }

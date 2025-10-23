@@ -16,10 +16,8 @@ struct Shape {
 
 	float vol = 0.0f;
 	Eigen::Vector3f com = Eigen::Vector3f::Zero(); // center of mass
-	Eigen::Matrix3f Ic = Eigen::Matrix3f::Identity(); // inertia tensor about center of mass
-	Eigen::Matrix3f inv_Ic = Eigen::Matrix3f::Identity();
-	Dyad sp_Ic = Dyad::Identity(); // spatial inertia tensor about center of mass
-	InvDyad sp_inv_Ic = Dyad::Identity();
+	Eigen::Matrix3f Ic3 = Eigen::Matrix3f::Identity(); // inertia tensor about center of mass
+	Dyad Ic6 = Dyad::Identity(); // spatial inertia tensor about center of mass
 	
 	enum class Type {
 		Cuboid,

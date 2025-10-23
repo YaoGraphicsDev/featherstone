@@ -48,6 +48,11 @@ add_subdirectory(featherstone)
 add_subdirectory(renderer)
 add_subdirectory(demos)
 
+# Eigen type format descriptor for vs debugger
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_GLOBAL_NATVIS_FILES
+    "Eigen.natvis"
+)
+
 # raylib headers and library
 # find_path(RAYLIB_INCLUDE_DIR raylib.h
 #     PATHS ${THIRD_PARTY_DIR}/raylib/include

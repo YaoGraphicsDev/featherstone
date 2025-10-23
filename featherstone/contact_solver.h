@@ -24,16 +24,9 @@ struct ContactSolver {
 	struct VelocityConstraintPoint {
 		MTransform Xortho_0_c; // transforms from com to contact point, no rotation
 		MTransform Xortho_1_c;
-		//MTransform X_c_0; // transforms from contact point to com local space, rotation included
-		//MTransform X_c_1;
-		//MTransform Xr_0; // rotational transform of com 
-		//MTransform Xr_1;
 		InvDyad inv_I0; // inverse inertia at contact point
 		InvDyad inv_I1;
-		InvDyad inv_Iortho0; // inverse inertia at com, rotation accounted for
-		InvDyad inv_Iortho1;
 		F3Subspace N_01; // 3x3. friction in xy direction, restitution in z direction. pointing from body 0 to body 1
-		// FVector n_01;
 		float* si_n; // accumulated sequential impulse, normal
 		FCoordinates* si_t; // accumulated sequential impulse, tangential
 		Unitless eff_mass; // 3x3 effective mass at contact point, first 2 elements tangential, 3rd normal

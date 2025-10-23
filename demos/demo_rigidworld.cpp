@@ -43,16 +43,36 @@ static FVector force_on_com(Vector3f f, Vector3f fp, Vector3f com, Matrix3f com_
 
 int main() {
     std::shared_ptr<RigidWorld> world = std::make_shared<RigidWorld>();
-    std::shared_ptr<RigidBody> box;
+    std::shared_ptr<RigidBody> box0;
+    std::shared_ptr<RigidBody> box1;
+    std::shared_ptr<RigidBody> box2;
     std::shared_ptr<RigidBody> ground;
     {
         RigidBody::Config config;
         config.shape.reset(new Cuboid(Vector3f(1.0f, 0.5f, 0.7f)));
         float radian = 45.0f / 180.0f * 3.1416f;
         config.rotation = Quaternionf(AngleAxisf(radian, Vector3f(1.0f, 1.0f, 1.0f).normalized()));
-        config.translation = Vector3f(2.0f, 8.0f, 3.0f);
-        box.reset(new RigidBody(config));
-        world->add_body(box);
+        config.translation = Vector3f(2.0f, 3.0f, 3.0f);
+        box0.reset(new RigidBody(config));
+        world->add_body(box0);
+    }
+    {
+        RigidBody::Config config;
+        config.shape.reset(new Cuboid(Vector3f(0.5f, 1.0f, 0.2f))); //TODO: somewhere along the line, mass was not properly incorporated in calculations
+        float radian = 90.0f / 180.0f * 3.1416f;
+        config.rotation = Quaternionf(AngleAxisf(radian, Vector3f(-1.0f, 1.0f, 1.0f).normalized()));
+        config.translation = Vector3f(2.5f, 6.0f, 2.5f);
+        box1.reset(new RigidBody(config));
+        world->add_body(box1);
+    }
+    {
+        RigidBody::Config config;
+        config.shape.reset(new Cuboid(Vector3f(0.5f, 1.0f, 0.35f)));
+        float radian = 90.0f / 180.0f * 3.1416f;
+        config.rotation = Quaternionf(AngleAxisf(radian, Vector3f::UnitZ()));
+        config.translation = Vector3f(2.5f, 8.0f, 2.0f);
+        box2.reset(new RigidBody(config));
+        world->add_body(box2);
     }
     {
         RigidBody::Config config;
@@ -67,8 +87,10 @@ int main() {
     renderer_config.world_aabb = { glm::vec3(-10.0f, -1.0f, -10.0f), glm::vec3(10.0f, 15.0f, 10.0f) };
     RigidWorldRenderer renderer(renderer_config);
 
-    size_t k1 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(box->shape)->half_dims));
-    size_t k2 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(ground->shape)->half_dims));
+    size_t k0 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(box0->shape)->half_dims));
+    size_t k1 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(box1->shape)->half_dims));
+    size_t k2 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(box2->shape)->half_dims));
+    size_t k3 = renderer.add_body(RigidWorldRenderer::Shape::Cuboid, v3(std::dynamic_pointer_cast<SPD::Cuboid>(ground->shape)->half_dims));
 
     float total_time = 0.0f;
     bool force_applied = false;
@@ -81,8 +103,10 @@ int main() {
 
         world->step(0.01667f);
 
-        renderer.update_body(k1, q(box->rotation), v3(box->translation));
-        renderer.update_body(k2, q(ground->rotation), v3(ground->translation));
+        renderer.update_body(k0, q(box0->rotation), v3(box0->translation));
+        renderer.update_body(k1, q(box1->rotation), v3(box1->translation));
+        renderer.update_body(k2, q(box2->rotation), v3(box2->translation));
+        renderer.update_body(k3, q(ground->rotation), v3(ground->translation));
     };
 
     renderer.run(update_world, nullptr);

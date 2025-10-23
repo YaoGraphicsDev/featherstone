@@ -17,7 +17,7 @@ struct RigidBody {
 		Eigen::Quaternionf rotation = Eigen::Quaternionf::Identity();
 		Eigen::Vector3f translation = Eigen::Vector3f::Zero();
 		DynamicType type = DynamicType::Dynamic;
-		float mass = 1.0f;
+		float density = 1.0f;
 	};
 
 	RigidBody(const Config& config) {
@@ -26,10 +26,13 @@ struct RigidBody {
 		translation = config.translation;
 		// bases = rotation.toRotationMatrix();
 		type = config.type;
-		mass = config.mass;
-		inv_mass = 1.0f / mass;
+		assert(config.density > 0.0f);
+		Ic = shape->Ic6 * config.density;
+		inv_Ic = Mat66(
+			shape->Ic3.inverse(), Eigen::Matrix3f::Zero(),
+			Eigen::Matrix3f::Zero(), Eigen::Vector3f::Constant(1.0f / shape->vol).asDiagonal()) / config.density;
+		mass = shape->vol * config.density;
 		v = MVector::Zero();
-		// a = MVector::Zero();
 		fe = FVector::Zero(); // external force
 		linear_damping = 0.05f;
 		angular_damping = 0.05f;
@@ -42,8 +45,11 @@ struct RigidBody {
 	Eigen::Vector3f translation = Eigen::Vector3f::Zero();
 	// Eigen::Matrix3f bases = rotation.toRotationMatrix();
 	DynamicType type = DynamicType::Static;
-	float mass = 1.0f;
-	float inv_mass = 1.0f / mass;
+	Dyad Ic;
+	Dyad inv_Ic;
+	float mass;
+	// float density = 1.0f;
+	// float inv_density = 1.0f / density;
 
 	MVector v = MVector::Zero();
 	FVector fe = FVector::Zero(); // external force
