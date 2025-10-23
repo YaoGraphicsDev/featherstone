@@ -13,8 +13,11 @@ typedef Matrix6<1> FVector;
 typedef Matrix6<6> MTransform;
 typedef Matrix6<6> FTransform;
 typedef Matrix6<6> Dyad; // Dyadic that maps motion space vector to force space
+typedef Matrix6<6> InvDyad; // inverse Dyad that maps force space vector to motion space
 typedef Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> MSubspace;
+typedef Eigen::Matrix<float, 3, Eigen::Dynamic, 0, 3, 3> M3Subspace;
 typedef Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> FSubspace;
+typedef Eigen::Matrix<float, 3, Eigen::Dynamic, 0, 3, 3> F3Subspace;
 typedef Eigen::Matrix<float, Eigen::Dynamic, 1, 0, 6, 1> MCoordinates;
 typedef Eigen::Matrix<float, Eigen::Dynamic, 1, 0, 6, 1> FCoordinates;
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> JDyad; // Joint space dyad. A typical instance being the joint space inertia matrix H
@@ -93,6 +96,14 @@ inline Dyad transform_dyad(const MTransform& X_a_b, const Dyad& Ia) {
 
 inline Dyad transform_dyad2(const MTransform& X_b_a, const Dyad& Ia) {
 	return transpose_transform(X_b_a) * Ia * X_b_a;
+}
+
+inline InvDyad transform_inv_dyad(const MTransform X_a_b, const InvDyad& inv_Ia) {
+	return X_a_b * inv_Ia * transpose_transform(X_a_b);
+}
+
+inline InvDyad transform_inv_dyad2(const MTransform X_b_a, const InvDyad& inv_Ia) {
+	return inverse_transform(X_b_a) * inv_Ia * dual_transform(X_b_a);
 }
 
 struct BlockAccess {

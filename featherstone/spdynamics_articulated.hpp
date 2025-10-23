@@ -194,4 +194,8 @@ struct ArticulatedBody {
 	const float beta = 50.0f;
 };
 
+struct RigidBody {
+	
+};
+
 }

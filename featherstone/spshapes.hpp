@@ -17,7 +17,15 @@ struct Shape {
 	float vol = 0.0f;
 	Eigen::Vector3f com = Eigen::Vector3f::Zero(); // center of mass
 	Eigen::Matrix3f Ic = Eigen::Matrix3f::Identity(); // inertia tensor about center of mass
+	Eigen::Matrix3f inv_Ic = Eigen::Matrix3f::Identity();
 	Dyad sp_Ic = Dyad::Identity(); // spatial inertia tensor about center of mass
+	InvDyad sp_inv_Ic = Dyad::Identity();
+	
+	enum class Type {
+		Cuboid,
+		Default
+	};
+	Type type = Type::Default;
 };
 
 struct Cuboid : public Shape {
@@ -25,6 +33,7 @@ struct Cuboid : public Shape {
 		compute_volumn();
 		compute_com();
 		compute_inertia();
+		type = Type::Cuboid;
 	}
 
 	virtual void compute_volumn() override;

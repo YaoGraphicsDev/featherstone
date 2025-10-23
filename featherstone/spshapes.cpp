@@ -18,11 +18,13 @@ void Cuboid::compute_inertia() {
 	Ic(0, 0) = vol * (hy2 + hz2) / 3.0f;
 	Ic(1, 1) = vol * (hx2 + hz2) / 3.0f;
 	Ic(2, 2) = vol * (hx2 + hy2) / 3.0f;
-
-	// TODO: compute spatial inertia
+	inv_Ic = Ic.inverse();
 	sp_Ic = Mat66(
 		Ic, Eigen::Matrix3f::Zero(),
 		Eigen::Matrix3f::Zero(), Eigen::Vector3f::Constant(vol).asDiagonal());
+	sp_inv_Ic = Mat66(
+		inv_Ic, Eigen::Matrix3f::Zero(),
+		Eigen::Matrix3f::Zero(), Eigen::Vector3f::Constant(1.0f / vol).asDiagonal());
 }
 
 }

@@ -1,4 +1,4 @@
-#include "spdynamics.hpp"
+#include "spdynamics_articulated.hpp"
 #include "rigidworld_renderer.h"
 
 #include <iostream>

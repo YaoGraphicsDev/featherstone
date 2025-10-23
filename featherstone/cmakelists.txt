@@ -18,7 +18,8 @@ add_library(featherstone ${FEATHERSTONE_SOURCES} ${FEATHERSTONE_HEADERS})
 target_include_directories(featherstone 
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE
-        ${EIGEN3_INCLUDE_DIR}  # Eigen required by featherstone
+        ${EIGEN3_INCLUDE_DIR}
+        ${BULLET_INCLUDE_DIR}
 )
 
 # Compiler features
