@@ -45,6 +45,8 @@ void ContactSolver::initialize(
 			VelocityConstraintPoint& cp = vcs[m].cps[c];
 			cp.Xortho_0_c = m_transform(Matrix3f::Identity(), Matrix3f::Identity(), p - b0.translation);
 			cp.Xortho_1_c = m_transform(Matrix3f::Identity(), Matrix3f::Identity(), p - b1.translation);
+			cp.Xortho_c_0 = inverse_transform(cp.Xortho_0_c);
+			cp.Xortho_c_1 = inverse_transform(cp.Xortho_1_c);
 
 			MTransform X_c_0 = m_transform(Matrix3f::Identity(), b0.rotation.toRotationMatrix(), b0.translation - p);
 			MTransform X_c_1 = m_transform(Matrix3f::Identity(), b1.rotation.toRotationMatrix(), b1.translation - p);
@@ -121,11 +123,11 @@ void ContactSolver::warm_start() {
 			FVector imp_01;
 			imp_01 << Vector3f::Zero(), imp3_01;
 			if (b0.type == RigidBody::DynamicType::Dynamic) {
-				MVector dv0 = inverse_transform(cp.Xortho_0_c) * (cp.inv_I0 * -imp_01);
+				MVector dv0 = cp.Xortho_c_0 * (cp.inv_I0 * -imp_01);
 				b0.v += dv0;
 			}
 			if (b1.type == RigidBody::DynamicType::Dynamic) {
-				MVector dv1 = inverse_transform(cp.Xortho_1_c) * (cp.inv_I1 * imp_01);
+				MVector dv1 = cp.Xortho_c_1 * (cp.inv_I1 * imp_01);
 				b1.v += dv1;
 			}
 		}
@@ -161,11 +163,11 @@ void ContactSolver::solve_velocity() {
 			FVector imp_01;
 			imp_01 << Vector3f::Zero(), imp3_01;
 			if (b0.type == RigidBody::DynamicType::Dynamic) {
-				MVector dv0 = inverse_transform(cp.Xortho_0_c) * (cp.inv_I0 * -imp_01);
+				MVector dv0 = cp.Xortho_c_0 * (cp.inv_I0 * -imp_01);
 				b0.v += dv0;
 			}
 			if (b1.type == RigidBody::DynamicType::Dynamic) {
-				MVector dv1 = inverse_transform(cp.Xortho_1_c) * (cp.inv_I1 * imp_01);
+				MVector dv1 = cp.Xortho_c_1 * (cp.inv_I1 * imp_01);
 				b1.v += dv1;
 			}
 		}
@@ -186,11 +188,11 @@ void ContactSolver::solve_velocity() {
 			FVector imp_01;
 			imp_01 << Vector3f::Zero(), imp3_01;
 			if (b0.type == RigidBody::DynamicType::Dynamic) {
-				MVector dv0 = inverse_transform(cp.Xortho_0_c) * (cp.inv_I0 * -imp_01);
+				MVector dv0 = cp.Xortho_c_0 * (cp.inv_I0 * -imp_01);
 				b0.v += dv0;
 			}
 			if (b1.type == RigidBody::DynamicType::Dynamic) {
-				MVector dv1 = inverse_transform(cp.Xortho_1_c) * (cp.inv_I1 * imp_01);
+				MVector dv1 = cp.Xortho_c_1 * (cp.inv_I1 * imp_01);
 				b1.v += dv1;
 			}
 		}

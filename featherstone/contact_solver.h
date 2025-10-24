@@ -24,6 +24,8 @@ struct ContactSolver {
 	struct VelocityConstraintPoint {
 		MTransform Xortho_0_c; // transforms from com to contact point, no rotation
 		MTransform Xortho_1_c;
+		MTransform Xortho_c_0; // inverse of the above two
+		MTransform Xortho_c_1;
 		InvDyad inv_I0; // inverse inertia at contact point
 		InvDyad inv_I1;
 		F3Subspace N_01; // 3x3. friction in xy direction, restitution in z direction. pointing from body 0 to body 1
