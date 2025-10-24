@@ -64,36 +64,15 @@ RigidWorldRenderer::RigidWorldRenderer(Config config) {
     SetConfigFlags(FLAG_MSAA_4X_HINT);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(config.screen_width, config.screen_height, "Rigid World Renderer");
-    
-    _shader = LoadShader((std::string(SHADER_DIR) + "shadowmap.vs").c_str(), (std::string(SHADER_DIR) + "shadowmap.fs").c_str());
-    _shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(_shader, "viewPos");
-    Vector3 lightDir = Vector3Normalize(V3(config.light_dir));
-    Color lightColor = WHITE;
-    Vector4 lightColorNormalized = ColorNormalize(lightColor);
-    _lightDirLoc = GetShaderLocation(_shader, "lightDir");
-    int lightColLoc = GetShaderLocation(_shader, "lightColor");
-    SetShaderValue(_shader, _lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
-    SetShaderValue(_shader, lightColLoc, &lightColorNormalized, SHADER_UNIFORM_VEC4);
-    int ambientLoc = GetShaderLocation(_shader, "ambient");
-    float ambient[4] = { 0.78f, 0.78f, 0.78f, 1.0f };
-    SetShaderValue(_shader, ambientLoc, ambient, SHADER_UNIFORM_VEC4);
-    _lightVPLoc = GetShaderLocation(_shader, "lightVP");
-    _shadowmapLoc = GetShaderLocation(_shader, "shadowMap");
-    SetShaderValue(_shader, GetShaderLocation(_shader, "shadowMapResolution"), &shadowmap_resolution, SHADER_UNIFORM_INT);
 
+    build_shaders(config);
+    build_textures();
     build_models();
 
     // shadowmap
     _shadowmap = LoadShadowmapRenderTexture(shadowmap_resolution, shadowmap_resolution);
 
     update_light(config.world_aabb, config.light_dir);
-    //OBB obb = DirectionalLightOBB(config.world_aabb, config.light_dir);
-    //_lightCam.position = Vector3Subtract(V3(obb.center), lightDir * obb.half_dims.z);
-    //_lightCam.target = V3(obb.center);
-    //_lightCam.projection = CAMERA_ORTHOGRAPHIC;
-    //_lightCam.up = V3(obb.bases[0]);
-    //_lightCam.fovy = glm::max(obb.half_dims.x, obb.half_dims.y) * 2.0f;
-    //_light_obb = obb;
 
     SetTargetFPS(config.fps);
     _frame_id = 0;
@@ -102,13 +81,9 @@ RigidWorldRenderer::RigidWorldRenderer(Config config) {
 }
 
 RigidWorldRenderer::~RigidWorldRenderer() {
-    for (auto& ele : _phong_models) {
-        UnloadModel(ele.second);
-    }
-    for (auto& ele : _default_models) {
-        UnloadModel(ele.second);
-    }
-    UnloadShader(_shader);
+    destroy_models();
+    destroy_textures();
+    destroy_shaders();
     UnloadShadowmapRenderTexture(_shadowmap);
 
     CloseWindow();
@@ -278,6 +253,37 @@ void RigidWorldRenderer::draw_scene() {
     }
 }
 
+void RigidWorldRenderer::build_shaders(Config config) {
+    _shader = LoadShader((std::string(SHADER_DIR) + "shadowmap.vs").c_str(), (std::string(SHADER_DIR) + "shadowmap.fs").c_str());
+    _shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(_shader, "viewPos");
+    Vector3 lightDir = Vector3Normalize(V3(config.light_dir));
+    Color lightColor = WHITE;
+    Vector4 lightColorNormalized = ColorNormalize(lightColor);
+    _lightDirLoc = GetShaderLocation(_shader, "lightDir");
+    int lightColLoc = GetShaderLocation(_shader, "lightColor");
+    SetShaderValue(_shader, _lightDirLoc, &lightDir, SHADER_UNIFORM_VEC3);
+    SetShaderValue(_shader, lightColLoc, &lightColorNormalized, SHADER_UNIFORM_VEC4);
+    int ambientLoc = GetShaderLocation(_shader, "ambient");
+    float ambient[4] = { 0.78f, 0.78f, 0.78f, 1.0f };
+    SetShaderValue(_shader, ambientLoc, ambient, SHADER_UNIFORM_VEC4);
+    _lightVPLoc = GetShaderLocation(_shader, "lightVP");
+    _shadowmapLoc = GetShaderLocation(_shader, "shadowMap");
+    SetShaderValue(_shader, GetShaderLocation(_shader, "shadowMapResolution"), &shadowmap_resolution, SHADER_UNIFORM_INT);
+}
+void RigidWorldRenderer::destroy_shaders() {
+    UnloadShader(_shader);
+}
+
+void RigidWorldRenderer::build_textures() {
+    Image checked_img = GenImageChecked(512, 512, 128, 128, GRAY, WHITE);
+    _checked_tex = LoadTextureFromImage(checked_img);
+    UnloadImage(checked_img);
+}
+
+void RigidWorldRenderer::destroy_textures() {
+    UnloadTexture(_checked_tex);
+}
+
 void RigidWorldRenderer::build_models() {
     _phong_models[Shape::Cuboid] = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
     _phong_models[Shape::Cylinder] = LoadModelFromMesh(GenMeshCylinder(1.0f, 1.0f, 32));
@@ -286,6 +292,7 @@ void RigidWorldRenderer::build_models() {
     // set materials
     for (auto& ele : _phong_models) {
         ele.second.materials[0].shader = _shader;
+        ele.second.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = _checked_tex;
     }
 
     _default_models[Shape::Cuboid] = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
@@ -293,6 +300,15 @@ void RigidWorldRenderer::build_models() {
     _default_models[Shape::Sphere] = LoadModelFromMesh(GenMeshSphere(1.0f, 8, 8));
     _default_models[Shape::Cone] = LoadModelFromMesh(GenMeshCone(1.0f, 1.0f, 16));
     // use default materials
+}
+
+void RigidWorldRenderer::destroy_models() {
+    for (auto& ele : _phong_models) {
+        UnloadModel(ele.second);
+    }
+    for (auto& ele : _default_models) {
+        UnloadModel(ele.second);
+    }
 }
 
 void RigidWorldRenderer::draw_wireframe_aabb(AABB aabb, Color color) {

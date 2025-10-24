@@ -11,46 +11,48 @@ file(GLOB_RECURSE RENDERER_HEADERS
     "*.h"
 )
 
-# Find shader files to copy
-file(GLOB SHADER_FILES
-    "shaders/shadowmap.vs"
-    "shaders/shadowmap.fs"
+# Find ALL shader files
+file(GLOB_RECURSE SHADER_FILES
+    "shaders/*.vs"
+    "shaders/*.fs"
 )
 
 # Create library
 add_library(renderer ${RENDERER_SOURCES} ${RENDERER_HEADERS})
 
-# Include directories - glm and raylib required for renderer
+# Include directories
 target_include_directories(renderer 
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE
         ${GLM_INCLUDE_DIR}
-        ${RAYLIB_INCLUDE_DIR}  # raylib headers
+        ${RAYLIB_INCLUDE_DIR}
 )
 
-# Link against raylib and other third-party libraries
+# Link libraries
 target_link_libraries(renderer PRIVATE ${RAYLIB_LIBRARY})
 target_link_libraries(renderer PRIVATE winmm)
 
 # Compiler features
 target_compile_features(renderer PUBLIC cxx_std_17)
 
-
 # Define the shader path macro for C++
 set(SHADER_DIR "${CMAKE_BINARY_DIR}/renderer/shaders/")
-# Copy shaders first
-add_custom_command(TARGET renderer POST_BUILD
+
+# Create custom command to copy shaders whenever they change
+add_custom_target(copy_shaders ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         ${SHADER_DIR}
-    COMMENT "Copying shaders directory to ${CMAKE_BINARY_DIR}/renderer/shaders"
+    COMMENT "Copying shaders to ${SHADER_DIR}"
+    DEPENDS ${SHADER_FILES}
 )
+
+# Make renderer depend on the shader copy target
+add_dependencies(renderer copy_shaders)
 
 # Pass the shader directory path to C++ as a preprocessor macro
 target_compile_definitions(renderer 
     PRIVATE 
         SHADER_DIR="${SHADER_DIR}"
 )
-
-# Also make it available to examples if they need it
-# set(SHADER_DIR "${SHADER_DIR}" PARENT_SCOPE)

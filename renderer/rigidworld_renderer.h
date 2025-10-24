@@ -62,7 +62,14 @@ private:
 	
 	void draw_scene();
 
+	void build_shaders(Config config);
+	void destroy_shaders();
+
+	void build_textures();
+	void destroy_textures();
+
 	void build_models();
+	void destroy_models();
 
 	void draw_wireframe_aabb(AABB aabb, Color color);
 
@@ -99,6 +106,8 @@ private:
 	Camera3D _lightCam;
 	Shader _shader;
 	RenderTexture2D _shadowmap;
+
+	Texture2D _checked_tex;
 
 	int _lightVPLoc;
 	int _lightDirLoc;
