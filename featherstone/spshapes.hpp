@@ -20,7 +20,9 @@ struct Shape {
 	Dyad Ic6 = Dyad::Identity(); // spatial inertia tensor about center of mass
 	
 	enum class Type {
-		Cuboid,
+		Cuboid = 0,
+		Cylinder,
+		Sphere,
 		Default
 	};
 	Type type = Type::Default;

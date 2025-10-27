@@ -7,7 +7,7 @@ namespace SPD {
 
 struct RigidBody {
 	enum class DynamicType {
-		Dynamic,
+		Dynamic = 0,
 		Static,
 		// Kinematic TODO: kinematic
 	};
@@ -18,6 +18,8 @@ struct RigidBody {
 		Eigen::Vector3f translation = Eigen::Vector3f::Zero();
 		DynamicType type = DynamicType::Dynamic;
 		float density = 1.0f;
+		float restitution_coeff = 0.3f;
+		float friction_coeff = 0.5f;
 	};
 
 	RigidBody(const Config& config) {
@@ -26,7 +28,9 @@ struct RigidBody {
 		translation = config.translation;
 		// bases = rotation.toRotationMatrix();
 		type = config.type;
-		assert(config.density > 0.0f);
+		if (type == DynamicType::Dynamic) {
+			assert(config.density > 0.0f);
+		}
 		Ic = shape->Ic6 * config.density;
 		inv_Ic = Mat66(
 			shape->Ic3.inverse(), Eigen::Matrix3f::Zero(),
@@ -36,8 +40,8 @@ struct RigidBody {
 		fe = FVector::Zero(); // external force
 		linear_damping = 0.05f;
 		angular_damping = 0.05f;
-		restitution_coeff = 0.5f;
-		friction_coeff = 0.5f;
+		restitution_coeff = config.restitution_coeff;
+		friction_coeff = config.friction_coeff;
 	}
 
 	std::shared_ptr<Shape> shape = nullptr;
@@ -55,7 +59,7 @@ struct RigidBody {
 	FVector fe = FVector::Zero(); // external force
 	float linear_damping = 0.05f;
 	float angular_damping = 0.05f;
-	float restitution_coeff = 0.5f;
+	float restitution_coeff = 0.3f;
 	float friction_coeff = 0.5f;
 };
 

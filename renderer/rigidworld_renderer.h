@@ -34,7 +34,7 @@ public:
 	~RigidWorldRenderer();
 
 	enum class Shape {
-		Cuboid,
+		Cuboid = 0,
 		Cylinder,
 		Sphere,
 		Cone

@@ -58,7 +58,7 @@ int main() {
     }
     {
         RigidBody::Config config;
-        config.shape.reset(new Cuboid(Vector3f(0.5f, 1.0f, 0.2f))); //TODO: somewhere along the line, mass was not properly incorporated in calculations
+        config.shape.reset(new Cuboid(Vector3f(0.5f, 1.0f, 0.2f)));
         float radian = 90.0f / 180.0f * 3.1416f;
         config.rotation = Quaternionf(AngleAxisf(radian, Vector3f(-1.0f, 1.0f, 1.0f).normalized()));
         config.translation = Vector3f(2.5f, 6.0f, 2.5f);

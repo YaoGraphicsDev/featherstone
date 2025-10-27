@@ -39,35 +39,15 @@ else()
     message(STATUS "glm found: ${GLM_INCLUDE_DIR}")
 endif()
 
-
-# Set the path to your third_party directory
-# set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/third_party)
-
 add_subdirectory(third_party)
 add_subdirectory(featherstone)
 add_subdirectory(renderer)
+# Define the shader path macro for C++
+set(SCENES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scenes/")
 add_subdirectory(demos)
 
 # Eigen type format descriptor for vs debugger
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_GLOBAL_NATVIS_FILES
     "Eigen.natvis"
 )
-
-# raylib headers and library
-# find_path(RAYLIB_INCLUDE_DIR raylib.h
-#     PATHS ${THIRD_PARTY_DIR}/raylib/include
-#     NO_DEFAULT_PATH
-# )
-# find_library(RAYLIB_LIBRARY
-#     NAMES raylib
-#     PATHS ${THIRD_PARTY_DIR}/raylib/lib
-#     NO_DEFAULT_PATH
-# )
-# if(NOT RAYLIB_INCLUDE_DIR OR NOT RAYLIB_LIBRARY)
-#     message(FATAL_ERROR "raylib not found in third_party directory!")
-# endif()
-# target_include_directories(${PROJECT_NAME} PRIVATE ${RAYLIB_INCLUDE_DIR})
-# target_link_libraries(${PROJECT_NAME} PRIVATE ${RAYLIB_LIBRARY})
-# target_link_libraries(${PROJECT_NAME} PRIVATE winmm)
-
 

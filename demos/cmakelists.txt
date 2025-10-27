@@ -38,6 +38,12 @@ function(add_demo demo_name source_file)
     set_target_properties(${demo_name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/demos
     )
+
+    # Pass the scene directory path to C++ as a preprocessor macro
+    target_compile_definitions(${demo_name} 
+    PRIVATE 
+        SCENES_DIR="${SCENES_DIR}"
+    )
 endfunction()
 
 # Find all demo source files
