@@ -10,6 +10,7 @@ function(add_demo demo_name source_file)
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
             ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
+            ${CMAKE_CURRENT_SOURCE_DIR}/../loader
             ${EIGEN3_INCLUDE_DIR}
             ${GLM_INCLUDE_DIR}
             ${RAYLIB_INCLUDE_DIR} # raylib headers for demos
@@ -26,6 +27,7 @@ function(add_demo demo_name source_file)
         PRIVATE
             featherstone
             renderer
+            loader
             ${RAYLIB_LIBRARY} # raylib for demos that use it directly
             ${BULLET_COLLISION_LIBRARY}
             ${BULLET_LINEARMATH_LIBRARY}

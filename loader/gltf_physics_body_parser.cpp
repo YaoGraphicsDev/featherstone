@@ -4,7 +4,6 @@
 #include "tiny_gltf.h"
 #include "json.hpp"
 #include "gltf_traits.h"
-#include "spshapes.hpp"
 
 #include <iostream>
 

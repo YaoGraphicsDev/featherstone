@@ -1,0 +1,28 @@
+project(loader)
+
+# Find all source files
+file(GLOB_RECURSE LOADER_SOURCES 
+    "*.cpp"
+    "*.c"
+)
+
+file(GLOB_RECURSE LOADER_HEADERS 
+    "*.hpp"
+    "*.h"
+)
+
+# Create library
+add_library(loader ${LOADER_SOURCES} ${LOADER_HEADERS})
+
+# Include directories - Eigen is required
+target_include_directories(loader 
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE
+        ${EIGEN3_INCLUDE_DIR}
+        ${TINYGLTF_INCLUDE_DIR}
+        ${NLOHMANN_JSON_INCLUDE_DIR}
+)
+
+# Compiler features
+target_compile_features(loader PUBLIC cxx_std_17)
+target_compile_options(loader PRIVATE /bigobj)
