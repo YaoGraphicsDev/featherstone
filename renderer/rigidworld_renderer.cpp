@@ -82,6 +82,7 @@ RigidWorldRenderer::RigidWorldRenderer(Config config) {
 
 RigidWorldRenderer::~RigidWorldRenderer() {
     destroy_models();
+    destroy_bodies();
     destroy_textures();
     destroy_shaders();
     UnloadShadowmapRenderTexture(_shadowmap);
@@ -89,21 +90,138 @@ RigidWorldRenderer::~RigidWorldRenderer() {
     CloseWindow();
 }
 
-size_t RigidWorldRenderer::add_body(Shape shape, glm::vec3 half_dims, glm::quat rot, glm::vec3 trans) {
-    static int color_id = 0;
+static Mesh move_and_reupload_mesh(Mesh old_mesh, glm::vec3 translation, glm::quat rotation) {
+    Mesh new_mesh = { 0 };
+    new_mesh.vertexCount = old_mesh.vertexCount;
+    new_mesh.triangleCount = old_mesh.triangleCount;
+
+    {
+        new_mesh.vertices = (float*)RL_MALLOC(new_mesh.vertexCount * 3 * sizeof(float));
+        memcpy(new_mesh.vertices, old_mesh.vertices, new_mesh.vertexCount * 3 * sizeof(float));
+        glm::vec3* v3p = reinterpret_cast<glm::vec3*>(new_mesh.vertices);
+        for (int i = 0; i < new_mesh.vertexCount; ++i) {
+            *v3p = rotation * *v3p + translation;
+            ++v3p;
+        }
+    }
+
+    if (old_mesh.texcoords) {
+        new_mesh.texcoords = (float*)RL_MALLOC(new_mesh.vertexCount * 2 * sizeof(float));
+        memcpy(new_mesh.texcoords, old_mesh.texcoords, new_mesh.vertexCount * 2 * sizeof(float));
+    }
+
+    if (old_mesh.normals) {
+        new_mesh.normals = (float*)RL_MALLOC(new_mesh.vertexCount * 3 * sizeof(float));
+        memcpy(new_mesh.normals, old_mesh.normals, new_mesh.vertexCount * 3 * sizeof(float));
+        glm::vec3* v3p = reinterpret_cast<glm::vec3*>(new_mesh.normals);
+        for (int i = 0; i < new_mesh.vertexCount; ++i) {
+            *v3p = rotation * *v3p;
+            ++v3p;
+        }
+    }
+
+    if (old_mesh.indices) {
+        // assuming this is a triangle mesh
+        int index_count = new_mesh.triangleCount * 3;
+        new_mesh.indices = (uint16_t*)RL_MALLOC(index_count * sizeof(uint16_t));
+        memcpy(new_mesh.indices, old_mesh.indices, index_count * sizeof(uint16_t));
+    }
+
+    UnloadMesh(old_mesh);
+    UploadMesh(&new_mesh, false);
+    return new_mesh;
+}
+
+Mesh RigidWorldRenderer::build_mesh(
+    Shape shape,
+    glm::vec3 half_dim,
+    glm::vec3 trans,
+    glm::quat rot) {
+    if (shape == Shape::Cuboid) {
+        Mesh mesh = GenMeshCube(half_dim.x * 2.0f, half_dim.y * 2.0f, half_dim.z * 2.0f);
+        Mesh new_mesh = move_and_reupload_mesh(mesh, trans, rot);
+    }
+    else if (shape == Shape::Cylinder) {
+        Mesh mesh = GenMeshCylinder(half_dim.x, half_dim.y * 2.0f, 6); // Generated cylinder suts on z=0 plane. Move it downwars so that half of it goes under z = 0
+        Mesh new_mesh = move_and_reupload_mesh(mesh, rot * glm::vec3(0.0f, -half_dim.y, 0.0f) + trans, rot);
+        return new_mesh;
+    }
+    else {
+        assert(false);
+        return Mesh();
+    }
+}
+
+Mesh RigidWorldRenderer::build_mesh(
+    const std::vector<glm::vec3>& positions,
+    const std::vector<glm::vec3>& normals,
+    const std::vector<glm::vec2>& uvs,
+    const std::vector<uint16_t>& indices) {
+
+    int vertex_count = positions.size();
+    int index_count = indices.size();
+    Mesh mesh = { 0 };
+    mesh.vertexCount = vertex_count;
+    mesh.triangleCount = index_count / 3;
+
+    mesh.vertices = (float*)RL_MALLOC(vertex_count * 3 * sizeof(float));
+    memcpy(mesh.vertices, positions.data(), vertex_count * 3 * sizeof(float));
+
+    if (!uvs.empty()) {
+        assert(uvs.size() == vertex_count);
+        mesh.texcoords = (float*)RL_MALLOC(vertex_count * 2 * sizeof(float));
+        memcpy(mesh.texcoords, uvs.data(), vertex_count * 2 * sizeof(float));
+    }
+
+    if (!normals.empty()) {
+        assert(normals.size() == vertex_count);
+        mesh.normals = (float*)RL_MALLOC(vertex_count * 3 * sizeof(float));
+        memcpy(mesh.normals, normals.data(), vertex_count * 3 * sizeof(float));
+    }
+
+    mesh.indices = (uint16_t*)RL_MALLOC(index_count * sizeof(uint16_t));
+    memcpy(mesh.indices, indices.data(), index_count * sizeof(uint16_t));
+
+    UploadMesh(&mesh, false);
+    return mesh;
+}
+
+size_t RigidWorldRenderer::add_body(
+    const std::vector<Mesh>& collider_meshes,
+    const Mesh& renderable_mesh,
+    glm::vec3 trans,
+    glm::quat rot) {
+
     Body body;
-    body.shape = shape;
     body.rotation = rot;
     body.translation = trans;
-    body.half_dims = half_dims;
-    body.model = &_phong_models[shape];
+
+    body.renderable = LoadModelFromMesh(renderable_mesh);
+    body.renderable.materials[0].shader = _shader;
+    body.renderable.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = _checked_tex;
+    
+    for (const Mesh& m : collider_meshes) {
+        body.collider.push_back(LoadModelFromMesh(m));
+    }
+    //body.collider.transform = MatrixIdentity();
+    //body.collider.meshCount = collider_meshes.size();
+    //body.collider.meshes = (Mesh*)RL_CALLOC(body.collider.meshCount, sizeof(Mesh));
+    //std::memcpy(body.collider.meshes, collider_meshes.data(), body.collider.meshCount * sizeof(Mesh));
+    //body.collider.materialCount = 1;
+    //body.collider.materials = (Material*)RL_CALLOC(body.collider.materialCount, sizeof(Material));
+    //body.collider.materials[0] = LoadMaterialDefault();
+    //body.collider.meshMaterial = (int*)RL_CALLOC(body.collider.meshCount, sizeof(int));
+    //std::memset(body.collider.meshMaterial, 0, body.collider.meshCount * sizeof(int));
+
+    static int color_id = 0;
     body.color = _palette[color_id];
     color_id = ++color_id % _palette.size();
     _bodies.push_back(body);
-    return _bodies.size() - 1;
+    return _bodies.size() - 1;  
 }
 
 void RigidWorldRenderer::update_body(size_t key, glm::quat rotation, glm::vec3 translation) {
+    assert(false);
     assert(key < _bodies.size());
     if (key >= _bodies.size()) {
         return;
@@ -120,12 +238,16 @@ void RigidWorldRenderer::draw_bases(glm::vec3 origin, glm::mat3 bases, float len
     draw_sphere(V3(origin), length * 0.2f, MAGENTA);
 }
 
+#define COLLIDER_VISIBLE 1
+#define RENDERABLE_VISIBLE 2
+
 void RigidWorldRenderer::run(
     std::function<void(float frame_dt, size_t frame_id)> update_world_cb,
     std::function<void(float frame_dt, size_t frame_id)> draw_3d_aid_cb,
     Options opts) {
 
     static bool _camera_free_roam = false;
+    static int _collider_renderable_visibility = COLLIDER_VISIBLE | RENDERABLE_VISIBLE;
 
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
@@ -162,7 +284,9 @@ void RigidWorldRenderer::run(
             BeginMode3D(_lightCam);
             lightView = rlGetMatrixModelview();
             lightProj = rlGetMatrixProjection();
-            draw_scene();
+            if (_collider_renderable_visibility & RENDERABLE_VISIBLE) {
+                draw_renderables();
+            }
             EndMode3D();
         }
         EndTextureMode();
@@ -182,7 +306,12 @@ void RigidWorldRenderer::run(
         {
             BeginMode3D(_camera);
 
-            draw_scene();
+            if (_collider_renderable_visibility & RENDERABLE_VISIBLE) {
+                draw_renderables();
+            }
+            if (_collider_renderable_visibility & COLLIDER_VISIBLE) {
+                draw_colliders();
+            }
             // draw visual aids
             if (opts.show_light_config) {
                 draw_wireframe_aabb(_world_aabb, VIOLET);
@@ -217,8 +346,9 @@ void RigidWorldRenderer::run(
         }
         DrawText("Use [C] to toggle free roam camera", 10, 10, 20, DARKGRAY);
         DrawText("Use [F] to take a screenshot", 10, 35, 20, DARKGRAY);
+        DrawText("Use [G] to toggle visibility of colliders and renderables", 10, 60, 20, DARKGRAY);
         if (opts.movable_light) {
-            DrawText("Use [H][J][K][U] to rotate directional light", 10, 60, 20, DARKGRAY);
+            DrawText("Use [H][J][K][U] to rotate directional light", 10, 85, 20, DARKGRAY);
         }
 
         EndDrawing();
@@ -240,17 +370,35 @@ void RigidWorldRenderer::run(
             }
             _camera_free_roam = !_camera_free_roam;
         }
+        
+        if (IsKeyPressed(KEY_G)) {
+            (++_collider_renderable_visibility %= 3) += 1;
+        }
         //----------------------------------------------------------------------------------
     }
 }
 
-void RigidWorldRenderer::draw_scene() {
+void RigidWorldRenderer::draw_renderables() {
     for (Body& b : _bodies) {
         Vector3 axis = V3(glm::axis(b.rotation));
         // TODO: using degrees?
         float angle_deg = glm::degrees(glm::angle(b.rotation));
-        DrawModelEx(*b.model, V3(b.translation), axis, angle_deg, V3(b.half_dims * 2.0f), b.color);
+        // DrawModelEx(*b.model, V3(b.translation), axis, angle_deg, V3(b.half_dims * 2.0f), b.color);
+        DrawModelEx(b.renderable, V3(b.translation), axis, angle_deg, { 1.0f, 1.0f, 1.0f }, b.color);
     }
+}
+
+void RigidWorldRenderer::draw_colliders() {
+    rlDisableBackfaceCulling();
+    for (Body& b : _bodies) {
+        Vector3 axis = V3(glm::axis(b.rotation));
+        // TODO: using degrees?
+        float angle_deg = glm::degrees(glm::angle(b.rotation));
+        for (const Model& m : b.collider) {
+            DrawModelWiresEx(m, V3(b.translation), axis, angle_deg, { 1.0f, 1.0f, 1.0f }, BLACK);
+        }
+    }
+    rlEnableBackfaceCulling();
 }
 
 void RigidWorldRenderer::build_shaders(Config config) {
@@ -294,20 +442,21 @@ void RigidWorldRenderer::build_models() {
         ele.second.materials[0].shader = _shader;
         ele.second.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = _checked_tex;
     }
-
-    _default_models[Shape::Cuboid] = LoadModelFromMesh(GenMeshCube(1.0f, 1.0f, 1.0f));
-    _default_models[Shape::Cylinder] = LoadModelFromMesh(GenMeshCylinder(1.0f, 1.0f, 8));
-    _default_models[Shape::Sphere] = LoadModelFromMesh(GenMeshSphere(1.0f, 8, 8));
-    _default_models[Shape::Cone] = LoadModelFromMesh(GenMeshCone(1.0f, 1.0f, 16));
-    // use default materials
 }
 
 void RigidWorldRenderer::destroy_models() {
     for (auto& ele : _phong_models) {
         UnloadModel(ele.second);
     }
-    for (auto& ele : _default_models) {
-        UnloadModel(ele.second);
+}
+
+void RigidWorldRenderer::destroy_bodies() {
+    for (int i = 0; i < _bodies.size(); ++i) {
+        Body& b = _bodies[i];
+        UnloadModel(b.renderable);
+        for (Model& m : b.collider) {
+            UnloadModel(m);
+        }
     }
 }
 

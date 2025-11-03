@@ -1,26 +1,26 @@
 #pragma once
 
-#include "Eigen/Core"
+#include "gltf_parser_types.h"
 
 template<typename T>
 struct GltfElementTraits;
 
 template<>
-struct GltfElementTraits<Eigen::Vector2f> {
+struct GltfElementTraits<PVec2f> {
 	static constexpr int n_components = 2;
 	static constexpr int gltf_type = TINYGLTF_TYPE_VEC2;
 	static constexpr int gltf_component_type = TINYGLTF_COMPONENT_TYPE_FLOAT;
 };
 
 template<>
-struct GltfElementTraits<Eigen::Vector3f> {
+struct GltfElementTraits<PVec3f> {
 	static constexpr int n_components = 3;
 	static constexpr int gltf_type = TINYGLTF_TYPE_VEC3;
 	static constexpr int gltf_component_type = TINYGLTF_COMPONENT_TYPE_FLOAT;
 };
 
 template<>
-struct GltfElementTraits<Eigen::Vector4f> {
+struct GltfElementTraits<PVec4f> {
 	static constexpr int n_components = 4;
 	static constexpr int gltf_type = TINYGLTF_TYPE_VEC4;
 	static constexpr int gltf_component_type = TINYGLTF_COMPONENT_TYPE_FLOAT;
@@ -44,18 +44,18 @@ template<typename T>
 struct TypeReflect;
 
 template<>
-struct TypeReflect<Eigen::Vector2f> {
-	static constexpr const char* name = "Vector2f";
+struct TypeReflect<PVec2f> {
+	static constexpr const char* name = "PVec2f";
 };
 
 template<>
-struct TypeReflect<Eigen::Vector3f> {
-	static constexpr const char* name = "Vector3f";
+struct TypeReflect<PVec3f> {
+	static constexpr const char* name = "PVec3f";
 };
 
 template<>
-struct TypeReflect<Eigen::Vector4f> {
-	static constexpr const char* name = "Vector4f";
+struct TypeReflect<PVec4f> {
+	static constexpr const char* name = "PVec4f";
 };
 
 template<>

@@ -39,8 +39,26 @@ public:
 		Sphere,
 		Cone
 	};
+	
+	static Mesh build_mesh(
+		Shape shape,
+		glm::vec3 half_dim,
+		glm::vec3 trans = glm::vec3(0.0f),
+		glm::quat rot = glm::identity<glm::quat>());
+
+	static Mesh build_mesh(
+		const std::vector<glm::vec3>& positions,
+		const std::vector<glm::vec3>& normals,
+		const std::vector<glm::vec2>& uvs,
+		const std::vector<uint16_t>& indices);
+
 	// return handle
-	size_t add_body(Shape shape, glm::vec3 half_dims, glm::quat rot = glm::identity<glm::quat>(), glm::vec3 trans = glm::vec3(0.0f));
+	size_t add_body(
+		const std::vector<Mesh>& collider_meshes,
+		const Mesh& renderable_mesh,
+		glm::vec3 trans = glm::vec3(0.0f),
+		glm::quat rot = glm::identity<glm::quat>());
+
 
 	void update_body(size_t key, glm::quat rotation, glm::vec3 translation);
 
@@ -60,7 +78,9 @@ public:
 
 private:
 	
-	void draw_scene();
+	void draw_renderables();
+	
+	void draw_colliders();
 
 	void build_shaders(Config config);
 	void destroy_shaders();
@@ -70,6 +90,8 @@ private:
 
 	void build_models();
 	void destroy_models();
+
+	void destroy_bodies();
 
 	void draw_wireframe_aabb(AABB aabb, Color color);
 
@@ -88,16 +110,15 @@ private:
 	void UpdateCameraFreeRoam(Camera3D* camera, float moveSpeed, float mouseSensitivity);
 
 	std::map<Shape, Model> _phong_models; // material type: phong lighitng model + shadow
-	std::map<Shape, Model> _default_models; // material type: mono color default material
 
 	const std::vector<Color> _palette = { RED, GREEN, BLUE, YELLOW, MAGENTA };
 
 	struct Body {
-		Shape shape;
+		// Shape shape;
 		glm::quat rotation;
 		glm::vec3 translation;
-		glm::vec3 half_dims;
-		Model* model;
+		Model renderable;
+		std::vector<Model> collider;
 		Color color;
 	};
 	std::vector<Body> _bodies;
