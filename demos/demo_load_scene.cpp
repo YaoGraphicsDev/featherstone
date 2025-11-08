@@ -6,11 +6,17 @@
 #include <iostream>
 
 using namespace Eigen;
+using namespace SPD;
 
 std::shared_ptr<RigidWorldRenderer> renderer = nullptr;
+std::shared_ptr<RigidWorld> world = nullptr;
 
 glm::quat q(Quaternionf q) {
 	return glm::quat(q.w(), q.x(), q.y(), q.z());
+}
+
+Quaternionf EQ(glm::quat q) {
+	return Quaternionf(q.w, q.x, q.y, q.z);
 }
 
 glm::vec3 v3(Vector3f v) {
@@ -44,6 +50,12 @@ size_t add_node_to_renderer(const SceneNode& node) {
 				else if (c.implicit_shape->type == ImplicitShape::Type::Cylinder)
 					colliders.push_back(std::move(renderer->build_mesh(
 						RigidWorldRenderer::Shape::Cylinder,
+						v3(c.implicit_shape->half_dims),
+						v3(c.implicit_shape_translation),
+						q(c.implicit_shape_rotation))));
+				else if (c.implicit_shape->type == ImplicitShape::Type::Sphere)
+					colliders.push_back(std::move(renderer->build_mesh(
+						RigidWorldRenderer::Shape::Sphere,
 						v3(c.implicit_shape->half_dims),
 						v3(c.implicit_shape_translation),
 						q(c.implicit_shape_rotation))));
@@ -88,6 +100,88 @@ size_t add_node_to_renderer(const SceneNode& node) {
 	return key;
 }
 
+std::shared_ptr<Shape> create_shape_from_collider(const Collider& collider) {
+	std::shared_ptr<Shape> shape;
+	if (collider.implicit_shape) {
+		ImplicitShape::Type shape_type = collider.implicit_shape->type;
+		if (shape_type == ImplicitShape::Type::Box) {
+			shape = std::make_shared<Cuboid>(collider.implicit_shape->half_dims);
+		}
+		else if (shape_type == ImplicitShape::Type::Sphere) {
+			shape = std::make_shared<Sphere>(collider.implicit_shape->half_dims.x());
+		}
+		else {
+			assert(false);
+		}
+	}
+	else if (collider.convex_hull) {
+		shape = std::make_shared<ConvexHull>(
+			reinterpret_cast<const float*>(collider.convex_hull->positions.data()),
+			collider.convex_hull->positions.size(),
+			collider.convex_hull->indices.data(),
+			collider.convex_hull->indices.size());
+	}
+	else {
+		std::cout << "Invalid Collider" << std::endl;
+		shape = nullptr;
+	}
+
+	return shape;
+}
+
+std::shared_ptr<Shape> create_compound_shape_from_collider(const std::vector<Collider>& colliders) {
+	std::vector<CompoundShape::Composition> comps;
+	for (const Collider& c : colliders) {
+		comps.emplace_back();
+		comps.back().shape = create_shape_from_collider(c);
+		if (c.implicit_shape) {
+			comps.back().rotation = c.implicit_shape_rotation;
+			comps.back().translation = c.implicit_shape_translation;
+		}
+		else if (c.convex_hull) {
+			comps.back().rotation = Quaternionf::Identity();
+			comps.back().translation = Vector3f::Zero();
+		}
+		else {
+			assert(false);
+		}
+	}
+	return std::make_shared<CompoundShape>(comps);
+}
+
+std::shared_ptr<RigidBody> create_rigidbody_from_node(const SceneNode& node) {
+	RigidBody::Config config;
+
+	if (!node.physical) {
+		return nullptr;
+	}
+	
+	if (node.physical->colliders.size() == 1) {
+		config.shape = create_shape_from_collider(node.physical->colliders[0]);
+	}
+	else {
+		config.shape = create_compound_shape_from_collider(node.physical->colliders);
+	}
+	
+	config.rotation = node.world_rotation;
+	config.translation = node.world_translation;
+	config.type = static_cast<RigidBody::DynamicType>(node.physical->dyn_type);
+	config.density = node.physical->mass / config.shape->vol;
+	// averages resitution and friction
+	float avg_restitution = 0.0f;
+	float avg_friction = 0.0f;
+	std::for_each(node.physical->colliders.begin(), node.physical->colliders.end(), [&](Collider& c) {
+		avg_restitution += c.material->restitution;
+		avg_friction += c.material->friction;
+	});
+	avg_restitution /= (float)node.physical->colliders.size();
+	avg_friction /= (float)node.physical->colliders.size();
+	config.restitution_coeff = avg_restitution;
+	config.friction_coeff = avg_friction;
+
+	return std::make_shared<RigidBody>(config);
+}
+
 int main() {
 	SceneGraph graph;
 	SceneGraphFlatRefs refs;
@@ -97,52 +191,40 @@ int main() {
 	}
 	
 	RigidWorldRenderer::Config renderer_config;
-	renderer_config.world_aabb = { glm::vec3(-10.0f, -1.0f, -10.0f), glm::vec3(10.0f, 15.0f, 10.0f) };
+	renderer_config.world_aabb = { glm::vec3(-15.0f, -1.0f, -15.0f), glm::vec3(15.0f, 20.0f, 15.0f) };
 	renderer_config.cam.position = { 15.0f, 15.0f, 15.0f };
 	renderer_config.cam.target = { 0.0f, 2.0f, 0.0f };
 	renderer_config.light_dir = { -0.5f, -1.0f, -0.4f };
+	renderer_config.cam.position = { 15.5943, 28.0221, 42.1298 };
+	renderer_config.cam.target = { 15.2499, 27.5946, 41.2939 };
 	renderer = std::make_shared<RigidWorldRenderer>(renderer_config);
 
+	std::vector<size_t> render_keys;
 	for (int i = 0; i < graph.size(); ++i) {
-		add_node_to_renderer(graph[i]);
+		render_keys.push_back(add_node_to_renderer(graph[i]));
+	}
+
+	world = std::make_shared<RigidWorld>();
+	std::vector<std::shared_ptr<RigidBody>> rigidbodies;
+	for (int i = 0; i < graph.size(); ++i) {
+		rigidbodies.push_back(create_rigidbody_from_node(graph[i]));
+		world->add_body(rigidbodies[i]);
 	}
 
 	auto update_world = [&](float frame_dt, size_t frame_id) {
+		world->step(0.01667f);
+		for (size_t i = 0; i < rigidbodies.size(); ++i) {
+			auto rb = rigidbodies[i];
+			if (!rb) {
+				continue;
+			}
+			renderer->update_body(render_keys[i], q(rb->rotation), v3(rb->translation));
+		}
 	};
 
-	renderer->run(update_world, nullptr);
-
-	//std::vector<RigidBodyDescriptor> rigid_descs;
-	//std::vector<ArticulatedBodyDescriptor> articulated_descs;
-	//load_gltf_physics_world(std::string(SCENES_DIR) + "wrecking_ball/wrecking_ball.gltf", rigid_descs, articulated_descs);
-
-	//std::shared_ptr<RigidWorld> world = std::make_shared<RigidWorld>();
-
-	//RigidWorldRenderer::Config renderer_config;
-	//renderer_config.world_aabb = { glm::vec3(-10.0f, -1.0f, -10.0f), glm::vec3(10.0f, 15.0f, 10.0f) };
-	//renderer_config.cam.position = { 15.0f, 15.0f, 15.0f };
-	//renderer_config.cam.target = { 0.0f, 2.0f, 0.0f };
-	//renderer_config.light_dir = { -0.5f, -1.0f, -0.4f };
-	//std::shared_ptr<RigidWorldRenderer> renderer = std::make_shared<RigidWorldRenderer>(renderer_config);
-
-	//std::vector<std::shared_ptr<RigidBody>> rigidbodies;
-	//std::vector<size_t> render_keys;
-	//for (const auto& desc : rigid_descs) {
-	//	auto rb = build_rigidbody(desc);
-	//	rigidbodies.push_back(rb);
-	//	world->add_body(rb);
-	//	render_keys.push_back(add_rigidbody_to_renderer(renderer, rb));
-	//}
-
-	//auto update_world = [&](float frame_dt, size_t frame_id) {
-	//	world->step(0.01667f);
-	//	for (size_t i = 0; i < rigidbodies.size(); ++i) {
-	//		auto rb = rigidbodies[i];
-	//		renderer->update_body(render_keys[i], q(rb->rotation), v3(rb->translation));
-	//	}
-	//};
-
-	//renderer->run(update_world, nullptr);
+	RigidWorldRenderer::Options opts;
+	// opts.show_light_config = true;
+	renderer->run(update_world, nullptr, opts);
 
 	return 0;
 }

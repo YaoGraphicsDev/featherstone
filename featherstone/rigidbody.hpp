@@ -31,15 +31,18 @@ struct RigidBody {
 		if (type == DynamicType::Dynamic) {
 			assert(config.density > 0.0f);
 		}
-		Ic = shape->Ic6 * config.density;
-		inv_Ic = Mat66(
+		Dyad Ic = shape->Ic6 * config.density;
+		MTransform X_com_o = m_transform(Eigen::Matrix3f::Identity(), Eigen::Matrix3f::Identity(), -shape->com);
+		I = transform_dyad(X_com_o, Ic);
+		Dyad inv_Ic = Mat66(
 			shape->Ic3.inverse(), Eigen::Matrix3f::Zero(),
 			Eigen::Matrix3f::Zero(), Eigen::Vector3f::Constant(1.0f / shape->vol).asDiagonal()) / config.density;
+		inv_I = transform_inv_dyad(X_com_o, inv_Ic);
 		mass = shape->vol * config.density;
 		v = MVector::Zero();
 		fe = FVector::Zero(); // external force
-		linear_damping = 0.05f;
-		angular_damping = 0.05f;
+		linear_damping = 0.01f;
+		angular_damping = 0.01f;
 		restitution_coeff = config.restitution_coeff;
 		friction_coeff = config.friction_coeff;
 	}
@@ -49,27 +52,27 @@ struct RigidBody {
 	Eigen::Vector3f translation = Eigen::Vector3f::Zero();
 	// Eigen::Matrix3f bases = rotation.toRotationMatrix();
 	DynamicType type = DynamicType::Static;
-	Dyad Ic;
-	Dyad inv_Ic;
+	Dyad I;
+	Dyad inv_I;
 	float mass;
 	// float density = 1.0f;
 	// float inv_density = 1.0f / density;
 
 	MVector v = MVector::Zero();
 	FVector fe = FVector::Zero(); // external force
-	float linear_damping = 0.05f;
-	float angular_damping = 0.05f;
+	float linear_damping = 0.01f;
+	float angular_damping = 0.01f;
 	float restitution_coeff = 0.3f;
 	float friction_coeff = 0.5f;
 };
 
-struct Collider {
-	static std::shared_ptr<Collider> create(const RigidBody& rigidbody);
-
-	void update(Eigen::Vector3f translation, Eigen::Quaternionf rotation);
-
-	std::shared_ptr<btCollisionShape> shape;
-	std::shared_ptr<btCollisionObject> obj;
-};
+//struct Collider {
+//	static std::shared_ptr<Collider> create(const RigidBody& rigidbody);
+//
+//	void update(Eigen::Vector3f translation, Eigen::Quaternionf rotation);
+//
+//	std::shared_ptr<btCollisionShape> shape;
+//	std::shared_ptr<btCollisionObject> obj;
+//};
 
 }

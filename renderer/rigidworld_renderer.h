@@ -14,7 +14,7 @@ public:
 		int screen_width = 1440;
 		int screen_height = 900;
 		Camera3D cam = {
-			{ 10.0f, 10.0f, 10.0f }, // position
+			{ 12.0f, 12.0f, 12.0f }, // position
 			{ 0.0f, 0.0f, 0.0f }, // target
 			{ 0.0f, 1.0f, 0.0f }, // up
 			{ 45.0f }, // fov
@@ -61,6 +61,11 @@ public:
 
 
 	void update_body(size_t key, glm::quat rotation, glm::vec3 translation);
+
+	struct Body;
+	Body& get_body(size_t key) {
+		return _bodies[key];
+	}
 
 	void draw_bases(glm::vec3 origin, glm::mat3 bases, float length);
 

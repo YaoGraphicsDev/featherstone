@@ -190,7 +190,7 @@ static bool label_physical_node(int node_id, bool as_child) {
 	for (int c_id : node.children) {
 		// label children first
 		if (!label_physical_node(c_id, true)) {
-			std::cout << "error labeling node. node_id = " << node_id << std::endl;
+			std::cout << "error labeling node. node_id = " << c_id << std::endl;
 			return false;
 		}
 	}
@@ -601,8 +601,17 @@ static bool load_all_implicit_shapes(nlohmann::json& ext) {
 			nl::json& size = shape["cylinder"];
 			imp_shape.half_dims = Eigen::Vector3f((float)size["radiusBottom"], (float)size["height"] * 0.5f, (float)size["radiusBottom"]);
 		}
+		else if (imp_shape.type == ImplicitShape::Type::Sphere) {
+			if (!shape.contains("sphere")) {
+				std::cout << "Cannot find sphere parameters" << std::endl;
+				return false;
+			}
+
+			nl::json& size = shape["sphere"];
+			imp_shape.half_dims = Eigen::Vector3f::Constant((float)size["radius"]);
+		}
 		else {
-			std::cout << "Any other implicit shape other than box is not supported yet" << std::endl;
+			std::cout << "Implicit shape not supported. Shape = " << (int)imp_shape.type << std::endl;
 			assert(false);
 			return false;
 		}

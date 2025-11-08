@@ -147,6 +147,11 @@ Mesh RigidWorldRenderer::build_mesh(
         Mesh new_mesh = move_and_reupload_mesh(mesh, rot * glm::vec3(0.0f, -half_dim.y, 0.0f) + trans, rot);
         return new_mesh;
     }
+    else if (shape == Shape::Sphere) {
+        Mesh mesh = GenMeshSphere(half_dim.x * 1.01f, 8, 8); // Generated cylinder suts on z=0 plane. Move it downwars so that half of it goes under z = 0
+        Mesh new_mesh = move_and_reupload_mesh(mesh, trans, rot);
+        return new_mesh;
+    }
     else {
         assert(false);
         return Mesh();
@@ -204,15 +209,6 @@ size_t RigidWorldRenderer::add_body(
     for (const Mesh& m : collider_meshes) {
         body.collider.push_back(LoadModelFromMesh(m));
     }
-    //body.collider.transform = MatrixIdentity();
-    //body.collider.meshCount = collider_meshes.size();
-    //body.collider.meshes = (Mesh*)RL_CALLOC(body.collider.meshCount, sizeof(Mesh));
-    //std::memcpy(body.collider.meshes, collider_meshes.data(), body.collider.meshCount * sizeof(Mesh));
-    //body.collider.materialCount = 1;
-    //body.collider.materials = (Material*)RL_CALLOC(body.collider.materialCount, sizeof(Material));
-    //body.collider.materials[0] = LoadMaterialDefault();
-    //body.collider.meshMaterial = (int*)RL_CALLOC(body.collider.meshCount, sizeof(int));
-    //std::memset(body.collider.meshMaterial, 0, body.collider.meshCount * sizeof(int));
 
     static int color_id = 0;
     body.color = _palette[color_id];
@@ -222,7 +218,6 @@ size_t RigidWorldRenderer::add_body(
 }
 
 void RigidWorldRenderer::update_body(size_t key, glm::quat rotation, glm::vec3 translation) {
-    assert(false);
     assert(key < _bodies.size());
     if (key >= _bodies.size()) {
         return;
@@ -306,6 +301,9 @@ void RigidWorldRenderer::run(
         // color pass
         {
             BeginMode3D(_camera);
+            //std::cout << "camera" << std::endl;
+            //std::cout << _camera.target.x << ", " << _camera.target.y << ", " << _camera.target.z << std::endl;
+            //std::cout << _camera.position.x << ", " << _camera.position.y << ", " << _camera.position.z << std::endl;
 
             if (_collider_renderable_visibility & RENDERABLE_VISIBLE) {
                 draw_renderables();

@@ -52,9 +52,9 @@ void ContactSolver::initialize(
 			MTransform X_c_1 = m_transform(Matrix3f::Identity(), b1.rotation.toRotationMatrix(), b1.translation - p);
 
 			cp.inv_I0 = b0.type == RigidBody::DynamicType::Dynamic ? 
-				transform_inv_dyad2(X_c_0, b0.inv_Ic) : InvDyad(InvDyad::Zero());
+				transform_inv_dyad2(X_c_0, b0.inv_I) : InvDyad(InvDyad::Zero());
 			cp.inv_I1 = b1.type == RigidBody::DynamicType::Dynamic ?
-				transform_inv_dyad2(X_c_1, b1.inv_Ic) : InvDyad(InvDyad::Zero());
+				transform_inv_dyad2(X_c_1, b1.inv_I) : InvDyad(InvDyad::Zero());
 
 			MTransform Xr_0 = m_transform(Matrix3f::Identity(), b0.rotation.toRotationMatrix(), Vector3f::Zero());
 			MTransform Xr_1 = m_transform(Matrix3f::Identity(), b1.rotation.toRotationMatrix(), Vector3f::Zero());
@@ -220,8 +220,8 @@ void ContactSolver::solve_position() {
 
 			MTransform X_c_0 = m_transform(Matrix3f::Identity(), rot0, b0.translation - p); // transform from contact point to body 0
 			MTransform X_c_1 = m_transform(Matrix3f::Identity(), rot1, b1.translation - p); // transform from contact point to body 1
-			InvDyad inv_I0 = b0.type == RigidBody::DynamicType::Static ? InvDyad::Zero() : transform_inv_dyad2(X_c_0, b0.inv_Ic);
-			InvDyad inv_I1 = b1.type == RigidBody::DynamicType::Static ? InvDyad::Zero() : transform_inv_dyad2(X_c_1, b1.inv_Ic);
+			InvDyad inv_I0 = b0.type == RigidBody::DynamicType::Static ? InvDyad::Zero() : transform_inv_dyad2(X_c_0, b0.inv_I);
+			InvDyad inv_I1 = b1.type == RigidBody::DynamicType::Static ? InvDyad::Zero() : transform_inv_dyad2(X_c_1, b1.inv_I);
 
 			// positional impulse
 			float lambda = -(penetration) / cp.n_01.dot((inv_I0 + inv_I1) * cp.n_01);

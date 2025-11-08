@@ -23,7 +23,7 @@ struct Renderable {
 
 struct ImplicitShape {
     enum class Type {
-        Box,
+        Box = 0,
         Sphere,
         Cylinder,
         Capsule

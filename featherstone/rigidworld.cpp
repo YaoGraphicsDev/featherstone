@@ -11,12 +11,52 @@ namespace SPD {
 
 using namespace Eigen;
 
+inline btCollisionShape* btbox(std::shared_ptr<Shape> shape) {
+	const Cuboid* box = static_cast<Cuboid*>(shape.get());
+	return new btBoxShape(btv3(box->half_dims));
+}
+
+inline btCollisionShape* btsphere(std::shared_ptr<Shape> shape) {
+	const Sphere* sp = static_cast<Sphere*>(shape.get());
+	return new btSphereShape(sp->radius);
+}
+
+inline btCollisionShape* btconvexhull(std::shared_ptr<Shape> shape) {
+	const ConvexHull* ch = static_cast<ConvexHull*>(shape.get());
+	btConvexHullShape* btshape = new btConvexHullShape();
+	for (const Vector3f& p : ch->positions) {
+		btshape->addPoint(btv3(p));
+	}
+	btshape->setMargin(0.0f);
+	return btshape;
+}
+
+inline btCollisionShape* btcompound(std::shared_ptr<Shape> shape) {
+	const CompoundShape* cs = static_cast<CompoundShape*>(shape.get());
+	btCompoundShape* btshape = new btCompoundShape(true, cs->compositions.size());
+	for (const CompoundShape::Composition& comp : cs->compositions) {
+		if (comp.shape->type == Shape::Type::Cuboid) {
+			btshape->addChildShape(bttrans(comp.rotation, comp.translation), btbox(comp.shape));
+		}
+		else if (comp.shape->type == Shape::Type::ConvexHull) {
+			btshape->addChildShape(bttrans(comp.rotation, comp.translation), btconvexhull(comp.shape));
+		}
+		else if (comp.shape->type == Shape::Type::Sphere) {
+			btshape->addChildShape(bttrans(comp.rotation, comp.translation), btsphere(comp.shape));
+		}
+		else {
+			assert(false);
+		}
+	}
+	return btshape;
+}
+
 std::shared_ptr<RigidWorld::Collider> RigidWorld::Collider::create(const RigidBody& rigidbody, int user_id) {
 	btCollisionShape* shape = nullptr;
-	if (rigidbody.shape->type == Shape::Type::Cuboid) {
-		const Cuboid* box = static_cast<Cuboid*>(rigidbody.shape.get());
-		shape = new btBoxShape(btv3(box->half_dims));
-	}
+	if (rigidbody.shape->type == Shape::Type::Cuboid) shape = btbox(rigidbody.shape);
+	else if (rigidbody.shape->type == Shape::Type::Sphere) shape = btsphere(rigidbody.shape);
+	else if (rigidbody.shape->type == Shape::Type::ConvexHull) shape = btconvexhull(rigidbody.shape);
+	else if (rigidbody.shape->type == Shape::Type::Compound) shape = btcompound(rigidbody.shape);
 	else {
 		assert(false);
 	}
@@ -71,7 +111,7 @@ RigidWorld::~RigidWorld() {
 }
 
 void RigidWorld::add_body(std::shared_ptr<RigidBody> body) {
-	if (!body->shape || body->shape->type == Shape::Type::Default) {
+	if (!body || !body->shape || body->shape->type == Shape::Type::Default) {
 		return;
 	}
 
@@ -148,9 +188,9 @@ void RigidWorld::integrate_velocity(float dt) {
 		b->fe = FVector::Zero();
 
 		MTransform Xr = m_transform(Matrix3f::Identity(), b->rotation.toRotationMatrix(), Vector3f::Zero()); // a rotation to accomodate inertia's rotation
-		Dyad I = transform_dyad2(Xr, b->Ic);
+		Dyad I = transform_dyad2(Xr, b->I);
 		FVector bias = dual_transform(derivative_cross(b->v)) * I * b->v;
-		MVector a = transform_inv_dyad2(Xr, b->inv_Ic) * (fe_com - bias);
+		MVector a = transform_inv_dyad2(Xr, b->inv_I) * (fe_com - bias);
 		MVector v_ortho = b->v;
 		MVector a_ortho = a;
 
