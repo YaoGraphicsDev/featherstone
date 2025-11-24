@@ -199,6 +199,7 @@ void ContactSolver::solve_velocity() {
 	}
 }
 
+// TODO: early-termination if positional delta is lower than a certain threshold
 void ContactSolver::solve_position() {
 	for (PositionConstraint& pc : pcs) {
 		for (PositionConstraintPoint& cp : pc.cps) {
@@ -213,9 +214,9 @@ void ContactSolver::solve_position() {
 			// Track max constraint error.
 			penetration = std::min(0.0f, penetration);
 			// Prevent large corrections and allow slop.
-			const float baumgarte = 0.1f;
+			const float baumgarte = 0.2f;
 			const float slop = 0.005f;
-			const float max_correction = 0.2f;
+			const float max_correction = 0.4f;
 			penetration = std::clamp(baumgarte * (penetration + slop), -max_correction, 0.0f);
 
 			MTransform X_c_0 = m_transform(Matrix3f::Identity(), rot0, b0.translation - p); // transform from contact point to body 0

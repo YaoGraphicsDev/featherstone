@@ -116,7 +116,7 @@ private:
 
 	std::map<Shape, Model> _phong_models; // material type: phong lighitng model + shadow
 
-	const std::vector<Color> _palette = { RED, GREEN, BLUE, YELLOW, MAGENTA };
+	const std::vector<Color> _palette = { RED, GREEN, BLUE, YELLOW, PURPLE };
 
 	struct Body {
 		// Shape shape;

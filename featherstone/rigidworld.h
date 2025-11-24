@@ -56,7 +56,7 @@ struct RigidWorld {
 	std::shared_ptr<ContactSolver> contact_solver;
 
 	static const uint32_t max_velocity_solve_iterations = 10;
-	static const uint32_t max_position_solve_iterations = 5;
+	static const uint32_t max_position_solve_iterations = 8;
 };
 
 }

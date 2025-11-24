@@ -37,12 +37,13 @@ struct RigidBody {
 		Dyad inv_Ic = Mat66(
 			shape->Ic3.inverse(), Eigen::Matrix3f::Zero(),
 			Eigen::Matrix3f::Zero(), Eigen::Vector3f::Constant(1.0f / shape->vol).asDiagonal()) / config.density;
+		//Dyad inv_Ic = Ic.inverse();
 		inv_I = transform_inv_dyad(X_com_o, inv_Ic);
 		mass = shape->vol * config.density;
 		v = MVector::Zero();
 		fe = FVector::Zero(); // external force
-		linear_damping = 0.01f;
-		angular_damping = 0.01f;
+		linear_damping = 0.005f;
+		angular_damping = 0.005f;
 		restitution_coeff = config.restitution_coeff;
 		friction_coeff = config.friction_coeff;
 	}
@@ -59,9 +60,10 @@ struct RigidBody {
 	// float inv_density = 1.0f / density;
 
 	MVector v = MVector::Zero();
+	MVector v_mid = MVector::Zero();
 	FVector fe = FVector::Zero(); // external force
-	float linear_damping = 0.01f;
-	float angular_damping = 0.01f;
+	float linear_damping = 0.005f;
+	float angular_damping = 0.005f;
 	float restitution_coeff = 0.3f;
 	float friction_coeff = 0.5f;
 };
