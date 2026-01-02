@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rigidbody.hpp"
+#include "articulatedbody.hpp"
 #include "spshapes.hpp"
 #include "contact_solver.h"
 
@@ -15,7 +16,9 @@ struct RigidWorld {
 
 	~RigidWorld();
 
-	void add_body(std::shared_ptr<RigidBody> body);
+	void add_body(std::shared_ptr<RigidBody> rigidbody);
+
+	void add_body(std::shared_ptr<ArticulatedBody> body);
 
 	void step(float dt);
 	
@@ -24,26 +27,23 @@ struct RigidWorld {
 	void integrate_velocity(float dt);
 
 	void integrate_position(float dt);
-
-	float new_penetration(
-		const RigidBody& b0, Eigen::Vector3f local_p0,
-		const RigidBody& b1, Eigen::Vector3f local_p1,
-		Eigen::Vector3f n_01);
-
 	
 	// Eigen::Vector3f find_penetration(const btCollisionObject* obj0, const btCollisionObject* obj1);
 
 	Eigen::Vector3f gravity;
 
-	std::vector<std::shared_ptr<RigidBody>> bodies;
+	std::vector<std::shared_ptr<RigidBody>> rigidbodies;
+	std::vector<std::shared_ptr<ArticulatedBody>> artbodies;
 
 	struct Collider {
 		static std::shared_ptr<Collider> create(const RigidBody& rigidbody, int user_id);
+		static std::vector<std::shared_ptr<Collider>> create(const ArticulatedBody& artbody, int user_id);
 		void update(Eigen::Vector3f translation, Eigen::Quaternionf rotation);
 		std::shared_ptr<btCollisionShape> shape;
 		std::shared_ptr<btCollisionObject> obj;
 	};
-	std::vector<std::shared_ptr<Collider>> colliders;
+	std::vector<std::shared_ptr<Collider>> rigid_colliders;
+	std::vector<std::vector<std::shared_ptr<Collider>>> art_colliders;
 
 	struct CollisionWorld {
 		std::shared_ptr<btCollisionWorld> world = nullptr;

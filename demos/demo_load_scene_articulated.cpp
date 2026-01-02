@@ -182,14 +182,57 @@ std::shared_ptr<RigidBody> create_rigidbody_from_node(const SceneNode& node) {
 	return std::make_shared<RigidBody>(config);
 }
 
+std::shared_ptr<ArticulatedBody> create_articulated_body(const SceneGraph& graph, const NodeGroup& art_group, const ArticulationTree& art_tree) {
+	assert(!art_tree.empty() && !art_group.empty());
+	int base_id = art_group[0];
+	if (graph[base_id].physical->dyn_type !=  Physical::DynamicType::Static) {
+		std::cout << "base body has to be static" << std::endl;
+		return {};
+	}
+	
+	// TODO: set restitution and friction
+	std::shared_ptr<RigidBody> base = create_rigidbody_from_node(graph[base_id]);
+	std::shared_ptr<ArticulatedBody> art = std::make_shared<ArticulatedBody>(*base);
+
+	for (int id : art_group) {
+		if (id == base_id) {
+			continue;
+		}
+		std::shared_ptr<RigidBody> rb = create_rigidbody_from_node(graph[id]);
+		art->add_body(*rb);
+	}
+
+	// TODO: blender exclusive
+	//Eigen::Matrix3f joint_frame_blender;
+	////joint_frame_blender <<
+	////	1, 0, 0,
+	////	0, 0, -1,
+	////	0, 1, 0;
+	//joint_frame_blender <<
+	//	1, 0, 0,
+	//	0, 0, 1,
+	//	0, -1, 0;
+
+	for (const ArticulationLinkage& link : art_tree) {
+		art->add_constraint(
+			(ArticulatedBody::ConstraintType)link.joint.type,
+			link.bodyA_id,
+			link.bodyB_id,
+			link.bodyA_rotation.toRotationMatrix(), // * joint_frame_blender,
+			link.bodyA_translation);
+	}
+
+	art->build_tree();
+	return art;
+}
+
 int main() {
-	SceneGraph graph;
-	SceneGraphFlatRefs refs;
-	if (!load_gltf(std::string(SCENES_DIR) + "wrecking_ball/wrecking_ball.gltf", graph, refs)) {
+	Scene scene;
+	if (!load_gltf(std::string(SCENES_DIR) + "articulated/articulated_simplified.gltf", scene, GLTFParseOption::BlenderExport)) {
 		std::cout << "error loading gltf resource" << std::endl;
 		return 0;
 	}
-	
+
 	RigidWorldRenderer::Config renderer_config;
 	renderer_config.world_aabb = { glm::vec3(-15.0f, -1.0f, -15.0f), glm::vec3(15.0f, 20.0f, 15.0f) };
 	renderer_config.cam.position = { 15.0f, 15.0f, 15.0f };
@@ -199,32 +242,74 @@ int main() {
 	renderer_config.cam.target = { 15.2499, 27.5946, 41.2939 };
 	renderer = std::make_shared<RigidWorldRenderer>(renderer_config);
 
+	// add to renderer
 	std::vector<size_t> render_keys;
-	for (int i = 0; i < graph.size(); ++i) {
-		render_keys.push_back(add_node_to_renderer(graph[i]));
+	for (int i = 0; i < scene.graph.size(); ++i) {
+		render_keys.push_back(add_node_to_renderer(scene.graph[i]));
 	}
 
-	world = std::make_shared<RigidWorld>();
+	// add to physics world
+	Eigen::Vector3f gravity = Eigen::Vector3f(0.0f, -10.0f, 0.0f);
+	world = std::make_shared<RigidWorld>(gravity);
+
+	// add articulated bodies
+	std::vector<std::shared_ptr<ArticulatedBody>> artbodies;
+	assert(scene.art_forest.size() == scene.art_groups.size());
+	for (int i = 0; i < scene.art_forest.size(); ++i) {
+		artbodies.push_back(create_articulated_body(scene.graph, scene.art_groups[i], scene.art_forest[i]));
+		world->add_body(artbodies.back());
+	}
+
+	// add rigid bodies
 	std::vector<std::shared_ptr<RigidBody>> rigidbodies;
-	for (int i = 0; i < graph.size(); ++i) {
-		rigidbodies.push_back(create_rigidbody_from_node(graph[i]));
-		world->add_body(rigidbodies[i]);
+	for (int i : scene.rigidbody_group) {
+		rigidbodies.push_back(create_rigidbody_from_node(scene.graph[i]));
+		world->add_body(rigidbodies.back());
 	}
-
+	
 	auto update_world = [&](float frame_dt, size_t frame_id) {
+		if (frame_id == 210) {
+			int a = 0;
+		}
 		world->step(0.01667f);
-		for (size_t i = 0; i < rigidbodies.size(); ++i) {
-			auto rb = rigidbodies[i];
-			if (!rb) {
-				continue;
+
+		// update all rigid bodies
+		for (int i = 0; i < scene.rigidbody_group.size(); ++i) {
+			renderer->update_body(render_keys[scene.rigidbody_group[i]], q(rigidbodies[i]->rotation), v3(rigidbodies[i]->translation));
+		}
+
+		// update all articulated bodies
+		for (int g = 0; g < scene.art_groups.size(); ++g) {
+			const NodeGroup& group = scene.art_groups[g];
+			for (int i = 0; i < group.size(); ++i) {
+
+				renderer->update_body(
+					render_keys[group[i]],
+					q(artbodies[g]->bodies[i]->rotation),
+					v3(artbodies[g]->bodies[i]->translation));
 			}
-			renderer->update_body(render_keys[i], q(rb->rotation), v3(rb->translation));
 		}
 	};
 
+	auto draw_articulated_joints = [&](std::shared_ptr<ArticulatedBody> artbody) {
+		for (int i = 1; i < artbody->tree_joints.size(); ++i) {
+			std::shared_ptr<ArticulatedBody::Constraint> c = artbody->tree_joints[i];
+			renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 3.0f);
+			renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 3.0f);
+		}
+	};
+
+	auto debug_draw = [&](float frame_dt, size_t frame_id) {
+		// renderer.draw_bases(glm::vec3(0.0f), glm::mat3(1.0f), 1.0f);
+		for (auto artbody : artbodies) {
+			draw_articulated_joints(artbody);
+		}
+	};
+
+
 	RigidWorldRenderer::Options opts;
 	// opts.show_light_config = true;
-	renderer->run(update_world, nullptr, opts);
+	renderer->run(update_world, debug_draw, opts);
 
 	return 0;
 }

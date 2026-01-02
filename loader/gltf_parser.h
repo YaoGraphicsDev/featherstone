@@ -4,7 +4,8 @@
 
 #include <string>
 
-bool load_gltf(
-	const std::string& filename,
-	SceneGraph& graph,
-	SceneGraphFlatRefs& graph_refs);
+enum GLTFParseOption {
+	Default = 0,
+	BlenderExport,
+};
+bool load_gltf(const std::string& filename, Scene& scene, GLTFParseOption opt);

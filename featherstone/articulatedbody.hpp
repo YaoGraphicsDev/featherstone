@@ -1,6 +1,7 @@
 #pragma once
 
 #include "spshapes.hpp"
+#include "rigidbody.hpp"
 
 #include <memory>
 #include <vector>
@@ -10,12 +11,12 @@
 
 #include "Eigen/Core"
 
-namespace SPD{
+namespace SPD {
 
 struct ArticulatedBody {
 	struct Constraint;
+
 	struct Body {
-		// added with rigidbody
 		std::shared_ptr<Shape> shape = nullptr;
 
 		// values determined by the time constraint is set
@@ -29,12 +30,15 @@ struct ArticulatedBody {
 		// values updated every frame
 		Eigen::Quaternionf rotation = Eigen::Quaternionf::Identity();
 		Eigen::Vector3f translation = Eigen::Vector3f::Zero();
-		Eigen::Matrix3f bases = rotation.toRotationMatrix(); // body space bases in world space.
-		MVector v = MVector::Zero();
-		MVector a = MVector::Zero();
+		Eigen::Matrix3f bases = rotation.toRotationMatrix(); // body origin space bases in world space.
+		MVector v = MVector::Zero(); // body velocity, not origin velocity
+		//// MVector a = MVector::Zero();
 
 		// provided by eternal source
 		FVector fe0 = FVector::Zero(); // external force, in body0 space
+		float restitution_coeff = 0.3f;
+		float friction_coeff = 0.5f;
+		float mass = 1.0f;
 	};
 
 	ArticulatedBody() {
@@ -42,8 +46,9 @@ struct ArticulatedBody {
 		bodies = { std::make_shared<Body>() };
 	}
 
-	ArticulatedBody(std::shared_ptr<Shape> shape, Eigen::Quaternionf rotation, Eigen::Vector3f translation) {
-		add_body(shape, rotation, translation);
+	ArticulatedBody(const RigidBody& rb) {
+		assert(rb.type == RigidBody::DynamicType::Static);
+		add_body(rb);
 	}
 
 	~ArticulatedBody() {};
@@ -57,10 +62,12 @@ struct ArticulatedBody {
 		this->gravity = gravity;
 	}
 
-	std::shared_ptr<Body> add_body(std::shared_ptr<Shape> shape, Eigen::Quaternionf rotation, Eigen::Vector3f translation);
+	// std::shared_ptr<Body> add_body(std::shared_ptr<Shape> shape, Eigen::Quaternionf rotation, Eigen::Vector3f translation);
+
+	std::shared_ptr<Body> add_body(const RigidBody& rb);
 
 	enum class ConstraintType {
-		Revolute,
+		Revolute = 0,
 		Prismatic,
 		Ball,
 		Free
@@ -69,13 +76,13 @@ struct ArticulatedBody {
 		ConstraintType type;
 		std::shared_ptr<Body> b0;
 		std::shared_ptr<Body> b1;
-		Eigen::Matrix3f bb0; // bases of joint space, in body space 0
-		Eigen::Vector3f bt0; // translation of joint space, in body space 0
-		Eigen::Matrix3f bb1; // bases of joint space, in body space 1
-		Eigen::Vector3f bt1; // translation of joint space, in body space 1
-		MTransform X_0_J0; // transform from body 0 space to joint space 0
-		MTransform X_1_J1; // transform from body 1 space to joint space 1
-		MTransform X_J0_J1; // transform from joint 0 to joint space 1  TODO: didnt get updated properly
+		Eigen::Matrix3f bb0; // bases of joint space, in body 0 origin space
+		Eigen::Vector3f bt0; // translation of joint space, in body 0 orign space
+		Eigen::Matrix3f bb1; // bases of joint space, in body 1 origin space
+		Eigen::Vector3f bt1; // translation of joint space, in body 1 origin space
+		MTransform X_0_J0; // transform from body 0 origin space to joint space 0
+		MTransform X_1_J1; // transform from body 1 origin space to joint space 1
+		MTransform X_J0_J1; // transform from joint 0 to joint space 1
 		const MSubspace* S; // motion subspace
 		const FSubspace* T; // constaint force subspace
 		const FSubspace* Ta; // active force subspace
@@ -98,7 +105,13 @@ struct ArticulatedBody {
 	//	Eigen::Matrix3f q;
 	//};
 
-	// set b0 to nullptr to connect body to a base
+	std::shared_ptr<Constraint> add_constraint(
+		ConstraintType type,
+		size_t id0,
+		size_t id1,
+		Eigen::Matrix3f base0,
+		Eigen::Vector3f trans0);
+
 	std::shared_ptr<Constraint> add_constraint(
 		ConstraintType type,
 		std::shared_ptr<Body> b0,
@@ -108,18 +121,28 @@ struct ArticulatedBody {
 
 	bool build_tree();
 
-	void step(float dt);
+	void integrate_velocity(float dt);
 
-	void set_constraint_status(
-		std::shared_ptr<Constraint> c,
-		std::initializer_list<float> ql,
-		std::initializer_list<float> dql = {},
-		std::initializer_list<float> ddql = {});
+	void integrate_position(float dt);
 
-	void move_constraints(float dt);
+	void project_velocity();
 
-	// update bodies from joint space velocity and acceleration
-	void move_bodies();
+	void project_position();
+
+	void move_constraints();
+	
+	// body_id -- contact body 
+	// pc -- contact point in world space
+	// return Jacobian in body0 space
+	MSubspace jacobian_0(size_t body_id);
+
+	MCoordinates dq(size_t body_id);
+
+	void apply_delta_dq(MCoordinates delta_dq);
+
+	void apply_delta_q(MCoordinates delta_q);
+
+	JDyad H_inv(const Unitless& J);
 
 	// recursive newton-euler algo
 	void compute_bias_RNEA();
@@ -172,8 +195,13 @@ struct ArticulatedBody {
 	std::vector<std::set<int>> mu;
 	std::vector<std::set<int>> nu;
 
-	std::vector<MTransform> X_0_; // Set by RNEA. See RNEA for details
-	std::vector<MTransform> X_Li_;
+	// set by build_tree()
+	MTransform X_w_0; // transformation from world space to body 0 space
+	MTransform X_0_w;
+	// set by move_constraints()
+	std::vector<MTransform> X_0_; // transformation from body0 space to any body space.
+	std::vector<MTransform> X_Li_; // transformation from parent body space to chile body space
+	// set by build_tree()
 	std::vector<MTransform> XP; // loop joints' locations in predecessor body
 	std::vector<MTransform> XS; // loop joints' locations in sucessor body
 
@@ -182,6 +210,7 @@ struct ArticulatedBody {
 	std::vector<MVector> a_vp; // velocity product. Acceleration of bodies if tree joint accelerations (ddq) are zero
 
 	JDyad H; // joint space inertia matrix H
+	Eigen::LLT<JDyad> H_llt;
 	std::shared_ptr<BlockAccess> H_acc = nullptr;
 
 	GPower K;
@@ -192,10 +221,6 @@ struct ArticulatedBody {
 
 	const float alpha = 50.0f;
 	const float beta = 50.0f;
-};
-
-struct RigidBody {
-	
 };
 
 }

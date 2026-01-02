@@ -68,12 +68,41 @@ struct SceneNode {
     std::vector<Renderable> renderables;
     std::shared_ptr<Physical> physical;
 };
-
 typedef std::vector<SceneNode> SceneGraph;
 
-struct ObjectRef {
-    uint32_t node_id;
-    uint32_t renderable_id;
+struct ArticulationLinkage {
+    struct Joint {
+        enum Type {
+            Revolute = 0,
+            Prismatic,
+        };
+        Type type;
+        struct Limit {
+            float min;
+            float max;
+        };
+        typedef std::vector<Limit> DofLimits;
+        DofLimits dof_limits;
+    };
+
+    std::string name;
+    Joint joint;
+    int bodyA_id = -1;
+    int bodyB_id = -1;
+    Eigen::Vector3f bodyA_translation = Eigen::Vector3f::Zero();
+    Eigen::Quaternionf bodyA_rotation = Eigen::Quaternionf::Identity();
 };
-typedef std::vector<ObjectRef> SceneGraphFlatRefs;
+
+typedef std::vector<int> NodeGroup;
+typedef std::vector<ArticulationLinkage> ArticulationTree;
+typedef std::vector<ArticulationTree> ArticulationForest;
+typedef std::vector<NodeGroup> ArticulationGroups;
+
+struct Scene {
+    SceneGraph graph;
+    NodeGroup rigidbody_group;
+    NodeGroup non_physical_group;
+    ArticulationGroups art_groups;
+    ArticulationForest art_forest;
+};
 

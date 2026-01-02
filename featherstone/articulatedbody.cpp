@@ -1,17 +1,18 @@
-#include "spdynamics_articulated.hpp"
+#include "articulatedbody.hpp"
 
 #include <iostream>
 #include <queue>
 
 namespace SPD {
 
-void ArticulatedBody::move_constraints(float dt) {
+
+void ArticulatedBody::move_constraints() {
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<Constraint> j = tree_joints[i];
 
 		// semi-implicit Euler
-		j->dq += j->ddq * dt;
-		j->q += j->dq * dt;
+		// j->dq += j->ddq * dt;
+		// j->q += j->dq * dt;
 
 		// TODO: update X_J0_J1
 		if (j->type == ConstraintType::Revolute) {
@@ -45,7 +46,7 @@ void ArticulatedBody::move_constraints(float dt) {
 
 void ArticulatedBody::joint_damping() {
 	for (int i = 1; i < tree_joints.size(); ++i) {
-		tree_joints[i]->taue -= tree_joints[i]->dq * 0.8f;
+		tree_joints[i]->taue -= tree_joints[i]->dq * 0.99f;
 	}
 	// TODO: add effective damping to loop joints
 }
@@ -84,10 +85,10 @@ void ArticulatedBody::solve_ddq() {
 
 	MCoordinates ddq = MCoordinates::Zero(H.cols(), 1);
 	if (loop_joints.empty()) {
-		ddq = H.llt().solve(tau - C);
+		ddq = H_llt.solve(tau - C);
 	}
 	else {
-		ddq = H.llt().solve(tau - C + K.transpose() * lambda);
+		ddq = H_llt.solve(tau - C + K.transpose() * lambda);
 	}
 
 	int count = 0;
@@ -98,27 +99,99 @@ void ArticulatedBody::solve_ddq() {
 	}
 }
 
-void ArticulatedBody::step(float dt) {
-	move_constraints(dt);
-	move_bodies();
+//void ArticulatedBody::step(float dt) {
+//	assert(false);
+//	move_constraints(dt);
+//	move_bodies();
+//
+//	compute_bias_RNEA();
+//	compute_H();
+//	compute_K_k();
+//
+//	joint_damping();
+//	solve_ddq();
+//	clear_joint_forces();
+//}
 
+void ArticulatedBody::integrate_velocity(float dt) {
 	compute_bias_RNEA();
 	compute_H();
-	compute_K_k();
-
+	if (!loop_joints.empty()) {
+		compute_K_k();
+	}
 	joint_damping();
 	solve_ddq();
 	clear_joint_forces();
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		std::shared_ptr<Constraint> j = tree_joints[i];
+		j->dq += j->ddq * dt;
+	}
+
+	// TODO: this should be useless. As contact solver only uses joint space velocity 
+	// and will also project velocity after it's done iterating
+	project_velocity();
 }
 
-std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::add_body(std::shared_ptr<Shape> shape, Eigen::Quaternionf rotation, Eigen::Vector3f translation) {
+void ArticulatedBody::integrate_position(float dt) {
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		std::shared_ptr<Constraint> j = tree_joints[i];
+		j->q += j->dq * dt;
+	}
+	move_constraints();
+	project_position();
+}
+
+void ArticulatedBody::project_velocity() {
+	for (int i = 1; i < bodies.size(); ++i) {
+		int Li = lambda[i];
+		std::shared_ptr<Body> Bi = bodies[i];
+		std::shared_ptr<const Body> BLi = bodies[Li];
+		std::shared_ptr<const Constraint> Ji = tree_joints[i];
+
+		MVector& vi = Bi->v;
+		// MVector& ai = Bi->a;
+		const MVector& vLi = BLi->v;
+		// const MVector& aLi = BLi->a;
+		const MSubspace& Si = *(Ji->S);
+		const MCoordinates& dqi = Ji->dq;
+		// const MCoordinates& ddqi = Ji->ddq;
+		MTransform vci = std::move(derivative_cross(vi));
+
+		vi = X_Li_[i] * vLi + Si * dqi;
+		// ai = X_Li_[i] * aLi + Si * ddqi + vci * Si * dqi;
+	}
+}
+
+//std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::add_body(std::shared_ptr<Shape> shape, Eigen::Quaternionf rotation, Eigen::Vector3f translation) {
+//	std::shared_ptr<Body> body = std::make_shared<Body>();
+//	body->shape = shape;
+//	body->rotation = rotation;
+//	body->translation = translation;
+//	body->bases = rotation.toRotationMatrix();
+//	bodies.push_back(body);
+//	return body;
+//}
+
+std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::add_body(const RigidBody& rb) {
 	std::shared_ptr<Body> body = std::make_shared<Body>();
-	body->shape = shape;
-	body->rotation = rotation;
-	body->translation = translation;
-	body->bases = rotation.toRotationMatrix();
+	body->shape = rb.shape;
+	body->rotation = rb.rotation;
+	body->translation = rb.translation;
+	body->bases = rb.rotation.toRotationMatrix();
+	body->restitution_coeff = rb.restitution_coeff;
+	body->friction_coeff = rb.friction_coeff;
+	body->mass = rb.mass;
 	bodies.push_back(body);
 	return body;
+}
+
+std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
+	ConstraintType type,
+	size_t id0,
+	size_t id1,
+	Eigen::Matrix3f base0,
+	Eigen::Vector3f trans0) {
+	return add_constraint(type, bodies[id0], bodies[id1], base0, trans0);
 }
 
 std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
@@ -168,65 +241,26 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
 		c->taue.resize(1, 1);
 		c->taue << 0.0f;
 	}
+	else {
+		assert(false);
+	}
 	tree_joints.push_back(c);
 
 	b0->children_joints.push_back(c);
 	b1->parent_joints.push_back(c);
 
-	// Transform from C (com space) to J (joint space)
-	MTransform X_C_J = m_transform(Eigen::Matrix3f::Identity(), c->bb1, c->bt1);
+	// Transform from com to J (joint space)
+	MTransform X_com_J = m_transform(Eigen::Matrix3f::Identity(), c->bb1, c->bt1 - b1->shape->com);
 	if (b1->shape) {
-		b1->I = std::move(transform_dyad(X_C_J, b1->shape->Ic6));//  dual_transform(X_C_J) * b1->shape->sp_Ic* inverse_transform(X_C_J);
+		b1->I = transform_dyad(X_com_J, b1->shape->Ic6) * b1->mass / b1->shape->vol;//  dual_transform(X_C_J) * b1->shape->sp_Ic* inverse_transform(X_C_J);
 	}
 
 	return c;
 }
 
-void ArticulatedBody::set_constraint_status(
-	std::shared_ptr<ArticulatedBody::Constraint> c,
-	std::initializer_list<float> ql,
-	std::initializer_list<float> dql,
-	std::initializer_list<float> ddql) {
-	assert(false); // TODO: set dq as next frame values
-	if (c->type == ConstraintType::Ball) {
-		// do not use Euler angles to calculate rotation for ball joints
-		assert(false);
-	}
-	else if (c->type == ConstraintType::Revolute) {
-		if (ql.size() >= 1) {
-			c->q[0] = *ql.begin();
-		}
-		if (dql.size() >= 1) {
-			c->dq[0] = *dql.begin();
-		}
-		if (ddql.size() >= 1) {
-			c->ddq[0] = *ddql.begin();
-		}
-		c->X_J0_J1 = m_transform(
-			Eigen::Matrix3f::Identity(),
-			Eigen::AngleAxisf(c->q[0], Eigen::Vector3f::UnitZ()).toRotationMatrix(),
-			Eigen::Vector3f::Zero());
-	}
-	else if (c->type == ConstraintType::Prismatic) {
-		if (ql.size() >= 1) {
-			c->q[0] = *ql.begin();
-		}
-		if (dql.size() >= 1) {
-			c->dq[0] = *dql.begin();
-		}
-		if (ddql.size() >= 1) {
-			c->ddq[0] = *ddql.begin();
-		}
-		c->X_J0_J1 = m_transform(
-			Eigen::Matrix3f::Identity(),
-			Eigen::Matrix3f::Identity(),
-			Eigen::Vector3f::UnitZ() * c->q[0]);
-	}
-}
-
 bool ArticulatedBody::build_tree() {
 	// breadth first
-	std::vector<std::shared_ptr<Body>> sorted_bodies;
+ 	std::vector<std::shared_ptr<Body>> sorted_bodies;
 	std::queue<std::shared_ptr<Body>> q;
 	q.push(bodies.front());
 	std::set<Body*> visited;
@@ -294,10 +328,14 @@ bool ArticulatedBody::build_tree() {
 		nu[lambda[i]].insert(nu[i].begin(), nu[i].end());
 	}
 
+	X_w_0 = m_transform(Eigen::Matrix3f::Identity(), bodies[0]->bases, bodies[0]->translation);
+	X_0_w = inverse_transform(X_w_0);
 	X_0_.resize(bodies.size());
 	X_0_[0] = MTransform::Identity();
 	X_Li_.resize(bodies.size());
 	X_Li_[0] = MTransform::Identity();
+
+	move_constraints();
 
 	// configure Xp and Xs
 	for (auto& j : loop_joints) {
@@ -334,22 +372,24 @@ bool ArticulatedBody::build_tree() {
 	H_acc = std::make_shared<BlockAccess>(H_block_sizes);
 	H = JDyad::Zero(H_acc->total_rows(), H_acc->total_cols());
 	
-	// configure K
-	std::vector<int> row_block_sizes;
-	for (auto& j : loop_joints) {
-		row_block_sizes.push_back(j->T->cols());
-	}
-	K_acc = std::make_shared<BlockAccess>(row_block_sizes, H_block_sizes);
-	K = GPower::Zero(K_acc->total_rows(), K_acc->total_cols());
+	if (!loop_joints.empty()) {
+		// configure K
+		std::vector<int> row_block_sizes;
+		for (auto& j : loop_joints) {
+			row_block_sizes.push_back(j->T->cols());
+		}
+		K_acc = std::make_shared<BlockAccess>(row_block_sizes, H_block_sizes);
+		K = GPower::Zero(K_acc->total_rows(), K_acc->total_cols());
 
-	// configure k
-	k_acc = std::make_shared<BlockAccess>(row_block_sizes, std::vector<int>{1});
-	_k = GPower::Zero(k_acc->total_rows(), k_acc->total_cols());
+		// configure k
+		k_acc = std::make_shared<BlockAccess>(row_block_sizes, std::vector<int>{1});
+		_k = GPower::Zero(k_acc->total_rows(), k_acc->total_cols());
+	}
 
 	return true;
 }
 
-void ArticulatedBody::move_bodies() {
+void ArticulatedBody::project_position() {
 	for (int i = 1; i < bodies.size(); ++i) {
 		auto cb = bodies[i]; // child body
 		auto pj = *cb->parent_joints.begin(); // parent joint
@@ -391,26 +431,75 @@ void ArticulatedBody::move_bodies() {
 		cb->translation = body1_translation_world;
 	}
 
-	for (int i = 1; i < bodies.size(); ++i) {
-		int Li = lambda[i];
-		std::shared_ptr<Body> Bi = bodies[i];
-		std::shared_ptr<const Body> BLi = bodies[Li];
-		std::shared_ptr<const Constraint> Ji = tree_joints[i];
-
-		MVector& vi = Bi->v;
-		MVector& ai = Bi->a;
-		const MVector& vLi = BLi->v;
-		const MVector& aLi = BLi->a;
-		const MSubspace& Si = *(Ji->S);
-		const MCoordinates& dqi = Ji->dq;
-		const MCoordinates& ddqi = Ji->ddq;
-		MTransform vci = std::move(derivative_cross(vi));
-
-		vi = X_Li_[i] * vLi + Si * dqi;
-		ai = X_Li_[i] * aLi + Si * ddqi + vci * Si * dqi;
-	}
-
 	return;
+}
+
+
+MSubspace ArticulatedBody::jacobian_0(size_t body_id) {
+	MSubspace J0 = MSubspace::Zero(6, H.rows());
+
+	if (body_id == 0 || body_id >= bodies.size()) {
+		assert(false);
+		return J0;
+	}
+	assert(H.rows() == H.cols());
+	assert(body_id <= H_acc->blocks.size());
+	size_t i = body_id;
+	while (i != 0) {
+		const MSubspace& s = *tree_joints[i]->S;
+		int start_col = H_acc->blocks[i - 1][i - 1].start_col;
+		assert(H_acc->blocks[i - 1][i - 1].cols == s.cols());
+		J0.middleCols(start_col, s.cols()) = inverse_transform(X_0_[i]) * s;
+		i = lambda[i];
+	}
+	return J0;
+}
+
+MCoordinates ArticulatedBody::dq(size_t body_id) {
+	MCoordinates dq_chain = MCoordinates::Zero(H.rows());
+
+	if (body_id == 0 || body_id >= bodies.size()) {
+		assert(false);
+		return dq_chain;
+	}
+	assert(body_id < bodies.size());
+	assert(H.rows() == H.cols());
+	assert(body_id <= H_acc->blocks.size());
+	// int n_rows = 0;
+	size_t i = body_id;
+	// std::deque<MCoordinates> dq_vec;
+	while (i != 0) {
+		const MCoordinates& dq = tree_joints[i]->dq;
+		int start_row = H_acc->blocks[i - 1][i - 1].start_row;
+		assert(H_acc->blocks[i - 1][i - 1].rows == dq.size());
+		dq_chain.segment(start_row, dq.size()) = dq;
+		i = lambda[i];
+	}
+	return dq_chain;
+}
+
+void ArticulatedBody::apply_delta_dq(MCoordinates delta_dq) {
+	assert(delta_dq.rows() == H.cols());
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		int offset = H_acc->blocks[i - 1][i - 1].start_col;
+		int n = H_acc->blocks[i - 1][i - 1].cols;
+		assert(n == tree_joints[i]->dq.size());
+		tree_joints[i]->dq += delta_dq.segment(offset, n);
+	}
+}
+
+void ArticulatedBody::apply_delta_q(MCoordinates delta_q) {
+	assert(delta_q.rows() == H.cols());
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		int offset = H_acc->blocks[i - 1][i - 1].start_col;
+		int n = H_acc->blocks[i - 1][i - 1].cols;
+		assert(n == tree_joints[i]->q.size());
+		tree_joints[i]->q += delta_q.segment(offset, n);
+	}
+}
+
+JDyad ArticulatedBody::H_inv(const Unitless& J) {
+	return H_llt.solve(J);
 }
 
 // treats loop joint active force as external force
@@ -419,10 +508,10 @@ void ArticulatedBody::compute_bias_RNEA() {
 	MVector v0 = MVector::Zero();
 	MVector aw;
 	aw << Eigen::Vector3f::Zero(), -gravity;
-	MTransform X_W_0 = m_transform(Eigen::Matrix3f::Identity(), bodies[0]->bases, bodies[0]->translation);// from world space to body 0 space
+	// MTransform X_W_0 = m_transform(Eigen::Matrix3f::Identity(), bodies[0]->bases, bodies[0]->translation);// from world space to body 0 space
 
 	// std::vector<MVector> a(bodies.size());
-	a_vp[0] = X_W_0 * aw;
+	a_vp[0] = X_w_0 * aw;
 
 	std::vector<FVector> f(bodies.size());
 	f[0] = FVector::Zero();
@@ -488,7 +577,8 @@ void ArticulatedBody::compute_H() {
 			H_acc->block(H, i - 1, j - 1) = F.transpose() * *tree_joints[j]->S;
 			H_acc->block(H, j - 1, i - 1) = H_acc->block(H, i - 1, j - 1).transpose();
 		}
-	} 
+	}
+	H_llt = H.llt();
 }
 
 GPower ArticulatedBody::compute_delta(ConstraintType type, const MTransform& X) {

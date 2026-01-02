@@ -41,7 +41,7 @@ struct RigidBody {
 		inv_I = transform_inv_dyad(X_com_o, inv_Ic);
 		mass = shape->vol * config.density;
 		v = MVector::Zero();
-		fe = FVector::Zero(); // external force
+		// fe = FVector::Zero(); // external force
 		linear_damping = 0.005f;
 		angular_damping = 0.005f;
 		restitution_coeff = config.restitution_coeff;
@@ -53,15 +53,12 @@ struct RigidBody {
 	Eigen::Vector3f translation = Eigen::Vector3f::Zero();
 	// Eigen::Matrix3f bases = rotation.toRotationMatrix();
 	DynamicType type = DynamicType::Static;
-	Dyad I;
-	Dyad inv_I;
+	Dyad I; // inertial at origin
+	Dyad inv_I; // inertial at origin
 	float mass;
-	// float density = 1.0f;
-	// float inv_density = 1.0f / density;
 
-	MVector v = MVector::Zero();
-	MVector v_mid = MVector::Zero();
-	FVector fe = FVector::Zero(); // external force
+	MVector v = MVector::Zero(); // velocity at origin, orthogonal
+	// FVector fe = FVector::Zero(); // external force at origin, orthogonal
 	float linear_damping = 0.005f;
 	float angular_damping = 0.005f;
 	float restitution_coeff = 0.3f;

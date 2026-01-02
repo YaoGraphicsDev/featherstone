@@ -3,6 +3,8 @@
 #include "spvec.hpp"
 #include "math_utils.h"
 #include "rigidbody.hpp"
+#include "articulatedbody.hpp"
+#include "solver_wrapper.hpp"
 #include "btBulletCollisionCommon.h"
 
 #include <map>
@@ -22,12 +24,16 @@ struct ContactSolver {
 	}
 
 	struct VelocityConstraintPoint {
-		MTransform Xortho_0_c; // transforms from com to contact point, no rotation
-		MTransform Xortho_1_c;
-		MTransform Xortho_c_0; // inverse of the above two
-		MTransform Xortho_c_1;
-		InvDyad inv_I0; // inverse inertia at contact point
-		InvDyad inv_I1;
+		//MTransform Xortho_0_c; // transforms from com to contact point, no rotation
+		//MTransform Xortho_1_c;
+		//MTransform Xortho_c_0; // inverse of the above two
+		//MTransform Xortho_c_1;
+		//MSubspace Jc_0;
+		//MSubspace Jc_1;
+		//InvDyad inv_I0; // inverse inertia at contact point
+		//InvDyad inv_I1;
+		std::shared_ptr<BodyContactPointVelocity> bp0;
+		std::shared_ptr<BodyContactPointVelocity> bp1;
 		F3Subspace N_01; // 3x3. friction in xy direction, restitution in z direction. pointing from body 0 to body 1
 		float* si_n; // accumulated sequential impulse, normal
 		FCoordinates* si_t; // accumulated sequential impulse, tangential
@@ -37,25 +43,24 @@ struct ContactSolver {
 
 	struct VelocityConstraint {
 		std::vector<VelocityConstraintPoint> cps;
-		size_t id0;
-		size_t id1;
 		float friction_coeff;
 		float restitution_coeff;
 	};
 
 	struct PositionConstraintPoint {
+		std::shared_ptr<BodyWrapper> b0;
+		std::shared_ptr<BodyWrapper> b1;
 		Eigen::Vector3f local_p0;
 		Eigen::Vector3f local_p1;
 		FVector n_01;
 	};
 	struct PositionConstraint {
 		std::vector<PositionConstraintPoint> cps;
-		size_t id0;
-		size_t id1;
 	};
 
 	void initialize(
 		const std::vector<std::shared_ptr<RigidBody>>& bodies,
+		const std::vector<std::shared_ptr<ArticulatedBody>>& artbodies,
 		std::shared_ptr<btCollisionDispatcher> dispatcher);
 
 	void warm_start();
@@ -64,22 +69,15 @@ struct ContactSolver {
 
 	void solve_position();
 
+	void project_velocity();
+
 	// void out(std::vector<std::shared_ptr<RigidBody>>& bodies);
 
 	std::vector<VelocityConstraint> vcs;
 	std::vector<PositionConstraint> pcs;
 
-	std::map<size_t, std::shared_ptr<RigidBody>> body_map;
-
-	//struct Position {
-	//	Eigen::Vector3f trans;
-	//	Eigen::Quaternionf rot;
-	//};
-	//std::map<size_t, MVector> v_com; // cached velocity values at com
-	//std::map<size_t, Position> pos_com; // cached position values at com
-	//std::map<size_t, RigidBody::DynamicType> dyn_types; // type cache
-
-	
+	// std::map<size_t, std::shared_ptr<RigidBody>> body_map;
+	std::map<size_t, std::shared_ptr<ArticulatedBody>> artbody_map;
 
 	struct ContactPersistentData {
 		ContactPersistentData() : si_n(0.0f), si_t(FCoordinates::Zero(2, 1)) {}

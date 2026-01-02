@@ -68,11 +68,46 @@ std::shared_ptr<RigidWorld::Collider> RigidWorld::Collider::create(const RigidBo
 		btv3(rigidbody.translation));
 	obj->setWorldTransform(transform);
 	obj->setUserIndex(user_id);
+	obj->setUserIndex2(-1); // articulated body indicator. -1 indicated it is not an art body
 
 	std::shared_ptr<Collider> collider = std::make_shared<Collider>();
 	collider->shape.reset(shape);
 	collider->obj.reset(obj);
 	return collider;
+}
+
+std::vector<std::shared_ptr<RigidWorld::Collider>> RigidWorld::Collider::create(const ArticulatedBody& artbody, int user_id) {
+	std::vector<std::shared_ptr<RigidWorld::Collider>> art_colliders;
+	for (int i = 0; i < artbody.bodies.size(); ++i) {
+		auto& body = artbody.bodies[i];
+		btCollisionShape* shape = nullptr;
+		assert(body);
+		if (!body->shape) {
+			continue;
+		}
+		if (body->shape->type == Shape::Type::Cuboid) shape = btbox(body->shape);
+		else if (body->shape->type == Shape::Type::Sphere) shape = btsphere(body->shape);
+		else if (body->shape->type == Shape::Type::ConvexHull) shape = btconvexhull(body->shape);
+		else if (body->shape->type == Shape::Type::Compound) shape = btcompound(body->shape);
+		else {
+			assert(false);
+		}
+
+		btCollisionObject* obj = new btCollisionObject();
+		obj->setCollisionShape(shape);
+		btTransform transform(
+			btquat(body->rotation),
+			btv3(body->translation));
+		obj->setWorldTransform(transform);
+		obj->setUserIndex(user_id);
+		obj->setUserIndex2(i);
+
+		std::shared_ptr<Collider> collider = std::make_shared<Collider>();
+		collider->shape.reset(shape);
+		collider->obj.reset(obj);
+		art_colliders.push_back(collider);
+	}
+	return art_colliders;
 }
 
 void RigidWorld::Collider::update(Eigen::Vector3f translation, Eigen::Quaternionf rotation) {
@@ -100,8 +135,13 @@ RigidWorld::RigidWorld(Eigen::Vector3f gravity) {
 }
 
 RigidWorld::~RigidWorld() {
-	for (auto c : colliders) {
+	for (auto c : rigid_colliders) {
 		collision_world->world->removeCollisionObject(c->obj.get());
+	}
+	for (auto& c : art_colliders) {
+		for (auto cc : c) {
+			collision_world->world->removeCollisionObject(cc->obj.get());
+		}
 	}
 	gContactDestroyedCallback = nullptr;
 	collision_world->world.reset();
@@ -110,15 +150,30 @@ RigidWorld::~RigidWorld() {
 	collision_world->config.reset();
 }
 
-void RigidWorld::add_body(std::shared_ptr<RigidBody> body) {
-	if (!body || !body->shape || body->shape->type == Shape::Type::Default) {
+void RigidWorld::add_body(std::shared_ptr<RigidBody> rigidbody) {
+	if (!rigidbody || !rigidbody->shape || rigidbody->shape->type == Shape::Type::Default) {
 		return;
 	}
 
-	bodies.push_back(body);
-	std::shared_ptr<Collider> c = Collider::create(*body, bodies.size() - 1);
-	colliders.push_back(c);
+	rigidbodies.push_back(rigidbody);
+	std::shared_ptr<Collider> c = Collider::create(*rigidbody, rigidbodies.size() - 1);
+	rigid_colliders.push_back(c);
 	collision_world->world->addCollisionObject(c->obj.get());
+}
+
+void RigidWorld::add_body(std::shared_ptr<ArticulatedBody> artbody) {
+	if (artbody->bodies.empty()) {
+		assert(false);
+		return;
+	}
+
+	artbodies.push_back(artbody);
+	artbody->set_gravity(this->gravity);
+	std::vector<std::shared_ptr<Collider>> cs = std::move(Collider::create(*artbody, artbodies.size() - 1));
+	art_colliders.push_back(cs);
+	for (std::shared_ptr<Collider> c : cs) {
+		collision_world->world->addCollisionObject(c->obj.get());
+	}
 }
 
 static int step_count = 0;
@@ -127,11 +182,12 @@ void RigidWorld::step(float dt) {
 	collide();
 	integrate_velocity(dt);
 
-	contact_solver->initialize(bodies, collision_world->dispatcher);
+	contact_solver->initialize(rigidbodies, artbodies, collision_world->dispatcher);
 	contact_solver->warm_start();
 	for (uint32_t i = 0; i < max_velocity_solve_iterations; ++i) {
 		contact_solver->solve_velocity();
 	}
+	contact_solver->project_velocity();
 
 	integrate_position(dt);
 
@@ -140,32 +196,10 @@ void RigidWorld::step(float dt) {
 	}
 }
 
-// parameters in world space
-static FVector force_on_com(Vector3f f, Vector3f fp, Vector3f com, Matrix3f com_bases) {
-	//Vector3f n = f.cross(-fp);
-	//FVector f6;
-	//f6 << n, f;
-	//FTransform t = dual_transform(m_transform(Matrix3f::Identity(), com_bases, com));
-	//f6 = t * f6;
-	//return f6;
-
-	Vector3f torque = f.cross(com - fp);
-	torque = com_bases.inverse() * torque;
-	Vector3f force = com_bases.inverse() * f;
-
-	FTransform t = dual_transform(m_transform(Matrix3f::Identity(), com_bases, com - fp));
-	FVector f6;
-	f6 << Vector3f::Zero(), f;
-	f6 = t * f6;
-	//// temp
-	//f6.head<3>() = Vector3f::Zero();
- 	return f6;
-}
-
 void RigidWorld::collide() {
-	for (int i = 0; i < bodies.size(); ++i) {
-		RigidBody& b = *bodies[i];
-		Collider& c = *colliders[i];
+	for (int i = 0; i < rigidbodies.size(); ++i) {
+		RigidBody& b = *rigidbodies[i];
+		Collider& c = *rigid_colliders[i];
 		if (b.type == RigidBody::DynamicType::Static) {
 			continue;
 		}
@@ -173,24 +207,33 @@ void RigidWorld::collide() {
 		collision_world->world->updateSingleAabb(c.obj.get());
 	}
 
+	for (int i = 0; i < artbodies.size(); ++i) {
+		ArticulatedBody& art_b = *artbodies[i];
+		std::vector<std::shared_ptr<Collider>>& art_c = art_colliders[i];
+		for (int j = 0; j < art_b.bodies.size(); ++j) {
+			art_c[j]->update(art_b.bodies[j]->translation, art_b.bodies[j]->rotation);
+			collision_world->world->updateSingleAabb(art_c[j]->obj.get());
+		}
+	}
+
 	collision_world->world->performDiscreteCollisionDetection();
 }
 
 void RigidWorld::integrate_velocity(float dt) {
-	for (auto b : bodies) {
+	for (auto b : rigidbodies) {
 		if (b->type == RigidBody::DynamicType::Static) {
 			continue;
 		}
 
-		FVector g6;
-		g6 << Vector3f::Zero(), gravity;
-		FVector fe_com = b->fe + g6 * b->mass;
-		b->fe = FVector::Zero();
+		FVector g6_com;
+		g6_com << Vector3f::Zero(), gravity;
+		FVector fe_o = dual_transform(m_transform(Matrix3f::Identity(), Matrix3f::Identity(), b->rotation * -b->shape->com)) * g6_com * b->mass;
 
-		MTransform Xr = m_transform(Matrix3f::Identity(), b->rotation.toRotationMatrix(), Vector3f::Zero()); // a rotation to accomodate inertia's rotation
+		// Accomodates rotation
+		MTransform Xr = m_transform(Matrix3f::Identity(), b->rotation.toRotationMatrix(), Vector3f::Zero());
 		Dyad I = transform_dyad2(Xr, b->I);
 		FVector bias = dual_transform(derivative_cross(b->v)) * I * b->v;
-		MVector a = transform_inv_dyad2(Xr, b->inv_I) * (fe_com - bias);
+		MVector a = transform_inv_dyad2(Xr, b->inv_I) * (fe_o - bias);
 		MVector v_ortho = b->v;
 		MVector a_ortho = a;
 
@@ -210,11 +253,15 @@ void RigidWorld::integrate_velocity(float dt) {
 		v_ortho << v_ang, v_linear;
 		b->v = /*inverse_transform(X_ortho) */ v_ortho;
 	}
+
+	for (auto ab : artbodies) {
+		ab->integrate_velocity(dt);
+	}
 }
 
 void RigidWorld::integrate_position(float dt) {
 	// TODO: for an accurate integration, see line 1103 of btDiscretePhysicsWorld.cpp predictIntegratedTransform
-	for (auto b : bodies) {
+	for (auto b : rigidbodies) {
 		// implicit euler on ortho linear velocity
 		Vector3f v_linear = b->v.tail<3>();
 		b->translation += v_linear * dt;
@@ -251,17 +298,22 @@ void RigidWorld::integrate_position(float dt) {
 		}
 		b->rotation.normalize();
 	}
+
+	// TODO integrate articulated body positions
+	for (auto ab : artbodies) {
+		ab->integrate_position(dt);
+	}
 }
 
 // return a negative value if penetration happens
-float RigidWorld::new_penetration(
-	const RigidBody& b0, Vector3f local_p0,
-	const RigidBody& b1, Vector3f local_p1,
-	Vector3f n_01) {
-	Vector3f p0 = b0.rotation.toRotationMatrix() * local_p0 + b0.translation;
-	Vector3f p1 = b1.rotation.toRotationMatrix() * local_p1 + b1.translation;
-	float proj = n_01.dot((p0 - p1));
-	return -proj;
-}
+//float RigidWorld::new_penetration(
+//	const RigidBody& b0, Vector3f local_p0,
+//	const RigidBody& b1, Vector3f local_p1,
+//	Vector3f n_01) {
+//	Vector3f p0 = b0.rotation.toRotationMatrix() * local_p0 + b0.translation;
+//	Vector3f p1 = b1.rotation.toRotationMatrix() * local_p1 + b1.translation;
+//	float proj = n_01.dot((p0 - p1));
+//	return -proj;
+//}
 
 }

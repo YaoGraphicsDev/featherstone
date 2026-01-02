@@ -288,7 +288,7 @@ void RigidWorldRenderer::run(
         EndTextureMode();
         Matrix lightViewProj = MatrixMultiply(lightView, lightProj);
 
-        ClearBackground(LIGHTGRAY);
+        ClearBackground(GRAY);
 
         SetShaderValueMatrix(_shader, _lightVPLoc, lightViewProj);
 

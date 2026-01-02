@@ -14,12 +14,12 @@ typedef Matrix6<6> MTransform;
 typedef Matrix6<6> FTransform;
 typedef Matrix6<6> Dyad; // Dyadic that maps motion space vector to force space
 typedef Matrix6<6> InvDyad; // inverse Dyad that maps force space vector to motion space
-typedef Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> MSubspace;
+typedef Eigen::Matrix<float, 6, Eigen::Dynamic> MSubspace;
 typedef Eigen::Matrix<float, 3, Eigen::Dynamic, 0, 3, 3> M3Subspace;
-typedef Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> FSubspace;
+typedef Eigen::Matrix<float, 6, Eigen::Dynamic> FSubspace;
 typedef Eigen::Matrix<float, 3, Eigen::Dynamic, 0, 3, 3> F3Subspace;
-typedef Eigen::Matrix<float, Eigen::Dynamic, 1, 0, 6, 1> MCoordinates;
-typedef Eigen::Matrix<float, Eigen::Dynamic, 1, 0, 6, 1> FCoordinates;
+typedef Eigen::Matrix<float, Eigen::Dynamic, 1> MCoordinates;
+typedef Eigen::Matrix<float, Eigen::Dynamic, 1> FCoordinates;
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> JDyad; // Joint space dyad. A typical instance being the joint space inertia matrix H
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> GPower; // Generalized power. Dot product between force and motion. Power and JDyad are in the same space.
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> Unitless; // Generalized power. Dot product between force and motion. Power and JDyad are in the same space.

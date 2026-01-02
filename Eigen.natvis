@@ -42,14 +42,13 @@
   </Type>
 
   <!-- MCoordinates, FCoordinate - Eigen::Matrix<float, -1, 1, 0, 6, 1> -->
-  <Type Name="Eigen::Matrix&lt;float,-1,1,0,6,1&gt;">
+  <Type Name="Eigen::Matrix&lt;float,-1,1,0,-1,1&gt;">
     <DisplayString>MCoordinates/FCoordinate ({m_storage.m_rows} x 1)</DisplayString>
     <Expand>
       <Item Name="Size">m_storage.m_rows</Item>
-      <Item Name="Max Size">6</Item>
       <ArrayItems>
         <Size>m_storage.m_rows</Size>
-        <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
+        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>
@@ -69,7 +68,7 @@
   </Type>
 
   <!-- MSubspace - Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> -->
-  <Type Name="Eigen::Matrix&lt;float,6,-1,0,6,6&gt;">
+  <Type Name="Eigen::Matrix&lt;float,6,-1,0,6,-1&gt;">
     <DisplayString>MSubspace (6 x {m_storage.m_cols})</DisplayString>
     <Expand>
       <Item Name="Rows">6</Item>
@@ -77,18 +76,29 @@
       <Item Name="Total Elements">6 * m_storage.m_cols</Item>
       <ArrayItems>
         <Size>6 * m_storage.m_cols</Size>
-        <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
+        <ValuePointer>(float*)m_storage.m_data</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>
 
-  <!-- MSubspace - Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> -->
+  <!-- Vector3f -->
   <Type Name="Eigen::Matrix&lt;float,3,1,0,3,1&gt;">
     <DisplayString>Vector3f</DisplayString>
     <Expand>
       <ArrayItems>
         <Size>3</Size>
         <ValuePointer>(float*)m_storage.m_data.array</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- Quaternionf -->
+  <Type Name="Eigen::Quaternion&lt;float,0&gt;">
+    <DisplayString>Quaternionf</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>4</Size>
+        <ValuePointer>(float*)m_coeffs.m_storage.m_data.array</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>
