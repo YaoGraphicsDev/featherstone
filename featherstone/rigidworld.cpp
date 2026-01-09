@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 namespace SPD {
 
@@ -124,14 +125,18 @@ RigidWorld::RigidWorld(Eigen::Vector3f gravity) {
 	btCollisionDispatcher* dispatcher = new btCollisionDispatcher(config );
 	btDbvtBroadphase* broadphase = new btDbvtBroadphase();
 	btCollisionWorld* world = new btCollisionWorld(dispatcher, broadphase, config);
+	AdjacentLinkFilter* filter = new RigidWorld::AdjacentLinkFilter();
 
 	collision_world.reset(new CollisionWorld);
+	collision_world->articulation_collision_filter.reset(filter);
 	collision_world->config.reset(config);
 	collision_world->dispatcher.reset(dispatcher);
 	collision_world->broadphase.reset(broadphase);
 	collision_world->world.reset(world);
+	collision_world->world->getPairCache()->setOverlapFilterCallback(filter);
 
 	contact_solver.reset(new ContactSolver());
+	loop_joint_solver.reset(new LoopJointSolver());
 }
 
 RigidWorld::~RigidWorld() {
@@ -144,10 +149,12 @@ RigidWorld::~RigidWorld() {
 		}
 	}
 	gContactDestroyedCallback = nullptr;
+	collision_world->world->getPairCache()->setOverlapFilterCallback(nullptr);
 	collision_world->world.reset();
 	collision_world->broadphase.reset();
 	collision_world->dispatcher.reset();
 	collision_world->config.reset();
+	collision_world->articulation_collision_filter.reset();
 }
 
 void RigidWorld::add_body(std::shared_ptr<RigidBody> rigidbody) {
@@ -169,6 +176,7 @@ void RigidWorld::add_body(std::shared_ptr<ArticulatedBody> artbody) {
 
 	artbodies.push_back(artbody);
 	artbody->set_gravity(this->gravity);
+	collision_world->articulation_collision_filter->add_body(artbody);
 	std::vector<std::shared_ptr<Collider>> cs = std::move(Collider::create(*artbody, artbodies.size() - 1));
 	art_colliders.push_back(cs);
 	for (std::shared_ptr<Collider> c : cs) {
@@ -183,16 +191,22 @@ void RigidWorld::step(float dt) {
 	integrate_velocity(dt);
 
 	contact_solver->initialize(rigidbodies, artbodies, collision_world->dispatcher);
+	loop_joint_solver->initialize(artbodies);
+
 	contact_solver->warm_start();
+	loop_joint_solver->warm_start();
+
 	for (uint32_t i = 0; i < max_velocity_solve_iterations; ++i) {
 		contact_solver->solve_velocity();
+		loop_joint_solver->solve_velocity();
 	}
-	contact_solver->project_velocity();
+	contact_solver->project_velocity(); // TODO: consider moving this to RigidWorld. project_velocity should not be exclusive to contact solver
 
 	integrate_position(dt);
 
 	for (uint32_t i = 0; i < max_position_solve_iterations; ++i) {
 		contact_solver->solve_position();
+		loop_joint_solver->solve_position();
 	}
 }
 
@@ -305,15 +319,47 @@ void RigidWorld::integrate_position(float dt) {
 	}
 }
 
-// return a negative value if penetration happens
-//float RigidWorld::new_penetration(
-//	const RigidBody& b0, Vector3f local_p0,
-//	const RigidBody& b1, Vector3f local_p1,
-//	Vector3f n_01) {
-//	Vector3f p0 = b0.rotation.toRotationMatrix() * local_p0 + b0.translation;
-//	Vector3f p1 = b1.rotation.toRotationMatrix() * local_p1 + b1.translation;
-//	float proj = n_01.dot((p0 - p1));
-//	return -proj;
-//}
+
+void RigidWorld::AdjacentLinkFilter::add_body(std::shared_ptr<ArticulatedBody> artbody) {
+	collision_disable_maps.emplace_back();
+	AdjacencyMap& am = collision_disable_maps.back();
+	for (auto joint : artbody->tree_joints) {
+		if (!joint) {
+			continue;
+		}
+		if (joint->disable_collision) {
+			am[joint->b0->id].insert(joint->b1->id);
+			am[joint->b1->id].insert(joint->b0->id);
+		}
+	}
+	for (auto joint : artbody->loop_joints) {
+		if (joint->disable_collision) {
+			am[joint->b0->id].insert(joint->b1->id);
+			am[joint->b1->id].insert(joint->b0->id);
+		}
+	}
+}
+
+bool RigidWorld::AdjacentLinkFilter::needBroadphaseCollision(btBroadphaseProxy* proxy0, btBroadphaseProxy* proxy1) const {
+	auto* obj0 = static_cast<btCollisionObject*>(proxy0->m_clientObject);
+	auto* obj1 = static_cast<btCollisionObject*>(proxy1->m_clientObject);
+
+	int id0 = obj0->getUserIndex();
+	int id1 = obj1->getUserIndex();
+	int sub_id0 = obj0->getUserIndex2();
+	int sub_id1 = obj1->getUserIndex2();
+
+	bool need_collision = true;
+	if (id0 == id1 && sub_id0 >= 0 && sub_id1 >= 0) {
+		// in the same articulated body, different link
+		auto iter = collision_disable_maps[id0].find(sub_id0);
+		if (iter != collision_disable_maps[id0].end() &&
+			iter->second.count(sub_id1) > 0) {
+			need_collision = false;
+		}
+	}
+
+	return need_collision;
+}
 
 }

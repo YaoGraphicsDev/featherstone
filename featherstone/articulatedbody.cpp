@@ -79,6 +79,8 @@ void ArticulatedBody::solve_ddq() {
 		Unitless A = KHi * K.transpose();
 		Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
 		Unitless b = _k - KHi * (tau - C);
+		// InvOrPinvSolver inv_A_solve(A);
+		// lambda = inv_A_solve.solve(b);
 		lambda = inv_A * b;
 	}
 
@@ -359,6 +361,10 @@ bool ArticulatedBody::build_tree() {
 			std::shared_ptr<Constraint> pj = tree_joints[sb->id]; // joint supporting predecessor body
 			XS.push_back(j->X_1_J1 * inverse_transform(pj->X_1_J1));
 		}
+	}
+	// sequential impulse
+	for (auto& j : loop_joints) {
+		SI.push_back(FCoordinates::Zero(j->T->cols(), 1));
 	}
 
 	// velocity product acceleration

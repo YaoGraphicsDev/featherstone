@@ -84,7 +84,7 @@ struct ArticulatedBody {
 		MTransform X_1_J1; // transform from body 1 origin space to joint space 1
 		MTransform X_J0_J1; // transform from joint 0 to joint space 1
 		const MSubspace* S; // motion subspace
-		const FSubspace* T; // constaint force subspace
+		const FSubspace* T; // constraint force subspace
 		const FSubspace* Ta; // active force subspace
 		MCoordinates q;
 		MCoordinates dq;
@@ -92,6 +92,8 @@ struct ArticulatedBody {
 		FCoordinates bias; // joint space bias force
 
 		FCoordinates taue; // external joint force, set by external source
+
+		bool disable_collision = true; // disable collision across joint
 	};
 	//struct RevoluteJoint : public Constraint {
 
@@ -131,8 +133,7 @@ struct ArticulatedBody {
 
 	void move_constraints();
 	
-	// body_id -- contact body 
-	// pc -- contact point in world space
+	// body_id -- contact body
 	// return Jacobian in body0 space
 	MSubspace jacobian_0(size_t body_id);
 
@@ -204,6 +205,7 @@ struct ArticulatedBody {
 	// set by build_tree()
 	std::vector<MTransform> XP; // loop joints' locations in predecessor body
 	std::vector<MTransform> XS; // loop joints' locations in sucessor body
+	std::vector<FCoordinates> SI; // Sequential Impulse on loop joints
 
 	Eigen::Vector3f gravity;
 
@@ -219,8 +221,8 @@ struct ArticulatedBody {
 	GPower _k;
 	std::shared_ptr<BlockAccess> k_acc;
 
-	const float alpha = 50.0f;
-	const float beta = 50.0f;
+	const float alpha = 0.5f;
+	const float beta = 0.5f;
 };
 
 }

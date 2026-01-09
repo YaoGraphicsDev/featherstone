@@ -550,11 +550,9 @@ static bool collect_articulation_links(const tg::Node& node, int this_id) {
 			if (ang_dist < 1E-4 && lin_dist < 1E-4) {
 				return c_id;
 			}
-			else {
-				assert(false);
-				return 0;
-			}
 		}
+		assert(false);
+		return 0;
 	};
 
 	// sort out articulation

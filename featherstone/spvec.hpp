@@ -171,4 +171,45 @@ struct BlockAccess {
 	
 };
 
+struct InvOrPinvSolver {
+
+	InvOrPinvSolver(const Unitless& A) {
+		// Robust invertibility/rank decision
+		lu.reset(new Eigen::FullPivLU<Unitless>(A));
+		if (lu->isInvertible()) {
+			svd = nullptr;
+			mode = Mode::LU;
+		}
+		else {
+			lu = nullptr;
+			svd.reset(new Eigen::BDCSVD<Unitless>(A, Eigen::ComputeThinU | Eigen::ComputeThinV));
+			mode = Mode::SVD;
+		}
+	}
+
+	// Solve Ax=b (or minimum-norm least-squares if singular)
+	Unitless solve(const Unitless& b) const {
+		if (mode == Mode::LU) {
+			return lu->solve(b);
+		}
+		else {
+			// SVD solve handles rank-deficient case (min-norm solution)
+			return svd->solve(b);
+		}
+	}
+
+	bool isInvertible() const { return mode == Mode::LU; }
+
+	enum class Mode {
+		LU,
+		SVD
+	};
+
+	Mode mode;
+
+	std::shared_ptr<Eigen::FullPivLU<Unitless>> lu;
+	std::shared_ptr<Eigen::BDCSVD<Unitless>> svd;
+};
+
+
 };

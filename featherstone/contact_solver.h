@@ -37,7 +37,10 @@ struct ContactSolver {
 		F3Subspace N_01; // 3x3. friction in xy direction, restitution in z direction. pointing from body 0 to body 1
 		float* si_n; // accumulated sequential impulse, normal
 		FCoordinates* si_t; // accumulated sequential impulse, tangential
-		Unitless eff_mass; // 3x3 effective mass at contact point, first 2 elements tangential, 3rd normal
+		// Eigen::Matrix3f eff_mass;
+		std::shared_ptr<InvOrPinvSolver> eff_mass_t_solve; // 2x2 tengential effective mass at contact point
+		// Unitless eff_mass_t; 
+		float eff_mass_n; // normal effective mass at contact point
 		float v_bias; // velocity bias, produced by resitution
 	};
 

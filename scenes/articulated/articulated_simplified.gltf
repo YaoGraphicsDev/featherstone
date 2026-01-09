@@ -109,6 +109,16 @@
 							8.351470947265625
 						]
 					}
+				},
+				{
+					"type":"box",
+					"box":{
+						"size":[
+							9.753198623657227,
+							0.9153382182121277,
+							1.5161186456680298
+						]
+					}
 				}
 			]
 		},
@@ -208,11 +218,7 @@
 			"nodes":[
 				6,
 				9,
-				11,
 				14,
-				15,
-				16,
-				17,
 				18,
 				19,
 				20,
@@ -221,7 +227,13 @@
 				23,
 				24,
 				25,
-				26
+				26,
+				27,
+				28,
+				29,
+				30,
+				34,
+				37
 			]
 		}
 	],
@@ -464,6 +476,54 @@
 			]
 		},
 		{
+			"extensions":{},
+			"extras":{
+				"khr_physics_extra_constraint_props":{}
+			},
+			"name":"rev3.002",
+			"translation":[
+				2.9220752716064453,
+				-0.5954550504684448,
+				0.5225472450256348
+			]
+		},
+		{
+			"name":"jointSpaceB",
+			"rotation":[
+				-1.6293411064793872e-08,
+				-0.5263841152191162,
+				5.257706803263318e-08,
+				0.8502469062805176
+			],
+			"translation":[
+				3.4194424152374268,
+				0.5530974864959717,
+				0.002079530619084835
+			]
+		},
+		{
+			"extensions":{
+				"KHR_physics_rigid_bodies":{
+					"joint":{
+						"connectedNode":11,
+						"joint":1
+					}
+				}
+			},
+			"name":"jointSpaceA",
+			"rotation":[
+				1.4901161193847656e-08,
+				2.0489094865183688e-08,
+				6.798654794692993e-08,
+				1
+			],
+			"translation":[
+				2.9220752716064453,
+				-0.5954550504684448,
+				0.5225472450256348
+			]
+		},
+		{
 			"name":"jointSpaceB",
 			"rotation":[
 				5.029142258194952e-08,
@@ -479,7 +539,9 @@
 		},
 		{
 			"children":[
-				10
+				10,
+				12,
+				13
 			],
 			"extensions":{
 				"KHR_physics_rigid_bodies":{
@@ -528,7 +590,7 @@
 			"extensions":{
 				"KHR_physics_rigid_bodies":{
 					"joint":{
-						"connectedNode":10,
+						"connectedNode":13,
 						"joint":1
 					}
 				}
@@ -547,10 +609,25 @@
 			]
 		},
 		{
+			"name":"jointSpaceB",
+			"rotation":[
+				1.4901161193847656e-08,
+				2.0023438906946467e-08,
+				7.078051567077637e-08,
+				1
+			],
+			"translation":[
+				-1.5402004718780518,
+				0.4172818660736084,
+				0.6338996887207031
+			]
+		},
+		{
 			"children":[
-				12,
+				15,
 				3,
-				13
+				16,
+				17
 			],
 			"extensions":{
 				"KHR_physics_rigid_bodies":{
@@ -957,6 +1034,174 @@
 				8.328068733215332,
 				45.385196685791016
 			]
+		},
+		{
+			"extensions":{},
+			"extras":{
+				"khr_physics_extra_constraint_props":{}
+			},
+			"name":"rev3.004",
+			"rotation":[
+				0,
+				-0.5263841152191162,
+				0,
+				0.8502469062805176
+			],
+			"translation":[
+				-3.7300524711608887,
+				0.6207956671714783,
+				-0.3206764757633209
+			]
+		},
+		{
+			"name":"jointSpaceB",
+			"rotation":[
+				5.1535050005213634e-08,
+				-0.9397251009941101,
+				3.2704935648553146e-08,
+				0.34193098545074463
+			],
+			"translation":[
+				-4.508945941925049,
+				-0.5399335622787476,
+				-0.031794846057891846
+			]
+		},
+		{
+			"extensions":{
+				"KHR_physics_rigid_bodies":{
+					"joint":{
+						"connectedNode":32,
+						"joint":1
+					}
+				}
+			},
+			"name":"jointSpaceA",
+			"rotation":[
+				-1.41027003408567e-08,
+				-0.5263841152191162,
+				5.038635109144707e-08,
+				0.8502469062805176
+			],
+			"translation":[
+				-3.7300524711608887,
+				0.6207956671714783,
+				-0.3206764757633209
+			]
+		},
+		{
+			"children":[
+				31,
+				11,
+				33
+			],
+			"extensions":{
+				"KHR_physics_rigid_bodies":{
+					"motion":{
+						"mass":0.5
+					},
+					"collider":{
+						"geometry":{
+							"shape":2
+						},
+						"physicsMaterial":2,
+						"collisionFilter":0
+					}
+				}
+			},
+			"extras":{
+				"khr_physics_extra_props":{}
+			},
+			"mesh":16,
+			"name":"articulated.001",
+			"rotation":[
+				0.7028489708900452,
+				0.5627343058586121,
+				-0.26926180720329285,
+				0.3418062627315521
+			],
+			"translation":[
+				-2.911306381225586,
+				6.935734748840332,
+				-26.311439514160156
+			]
+		},
+		{
+			"extensions":{},
+			"extras":{
+				"khr_physics_extra_constraint_props":{}
+			},
+			"name":"rev3.003",
+			"rotation":[
+				0,
+				-0.9397251009941101,
+				0,
+				0.34193098545074463
+			],
+			"translation":[
+				4.616940021514893,
+				-0.6548874378204346,
+				0.33324533700942993
+			]
+		},
+		{
+			"extensions":{
+				"KHR_physics_rigid_bodies":{
+					"joint":{
+						"connectedNode":17,
+						"joint":1
+					}
+				}
+			},
+			"name":"jointSpaceA",
+			"rotation":[
+				4.3606576127785956e-08,
+				-0.9397251009941101,
+				4.1624463875677975e-08,
+				0.34193098545074463
+			],
+			"translation":[
+				4.616940021514893,
+				-0.6548874378204346,
+				0.33324533700942993
+			]
+		},
+		{
+			"children":[
+				35,
+				32,
+				36
+			],
+			"extensions":{
+				"KHR_physics_rigid_bodies":{
+					"motion":{
+						"mass":0.5
+					},
+					"collider":{
+						"geometry":{
+							"shape":10
+						},
+						"physicsMaterial":2,
+						"collisionFilter":0
+					}
+				}
+			},
+			"extras":{
+				"khr_physics_extra_props":{}
+			},
+			"mesh":17,
+			"name":"articulated.002",
+			"rotation":[
+				-0.7186810970306396,
+				-0.6535433530807495,
+				-0.22359809279441833,
+				0.07989031821489334
+			],
+			"translation":[
+				-2.394976854324341,
+				8.856073379516602,
+				-21.167724609375
+			]
 		}
 	],
 	"meshes":[
@@ -1163,6 +1408,32 @@
 						"POSITION":48,
 						"NORMAL":49,
 						"TEXCOORD_0":50
+					},
+					"indices":7
+				}
+			]
+		},
+		{
+			"name":"Cube.023",
+			"primitives":[
+				{
+					"attributes":{
+						"POSITION":51,
+						"NORMAL":52,
+						"TEXCOORD_0":53
+					},
+					"indices":7
+				}
+			]
+		},
+		{
+			"name":"Cube.026",
+			"primitives":[
+				{
+					"attributes":{
+						"POSITION":54,
+						"NORMAL":55,
+						"TEXCOORD_0":56
 					},
 					"indices":7
 				}
@@ -1635,6 +1906,62 @@
 			"componentType":5126,
 			"count":24,
 			"type":"VEC2"
+		},
+		{
+			"bufferView":51,
+			"componentType":5126,
+			"count":24,
+			"max":[
+				3.493797540664673,
+				0.457668662071228,
+				0.7580589652061462
+			],
+			"min":[
+				-3.493791341781616,
+				-0.45766910910606384,
+				-0.7580593228340149
+			],
+			"type":"VEC3"
+		},
+		{
+			"bufferView":52,
+			"componentType":5126,
+			"count":24,
+			"type":"VEC3"
+		},
+		{
+			"bufferView":53,
+			"componentType":5126,
+			"count":24,
+			"type":"VEC2"
+		},
+		{
+			"bufferView":54,
+			"componentType":5126,
+			"count":24,
+			"max":[
+				4.876599311828613,
+				0.457668662071228,
+				0.7580589652061462
+			],
+			"min":[
+				-4.876590728759766,
+				-0.45766910910606384,
+				-0.7580593228340149
+			],
+			"type":"VEC3"
+		},
+		{
+			"bufferView":55,
+			"componentType":5126,
+			"count":24,
+			"type":"VEC3"
+		},
+		{
+			"bufferView":56,
+			"componentType":5126,
+			"count":24,
+			"type":"VEC2"
 		}
 	],
 	"bufferViews":[
@@ -1943,11 +2270,47 @@
 			"byteLength":192,
 			"byteOffset":17288,
 			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":288,
+			"byteOffset":17480,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":288,
+			"byteOffset":17768,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":192,
+			"byteOffset":18056,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":288,
+			"byteOffset":18248,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":288,
+			"byteOffset":18536,
+			"target":34962
+		},
+		{
+			"buffer":0,
+			"byteLength":192,
+			"byteOffset":18824,
+			"target":34962
 		}
 	],
 	"buffers":[
 		{
-			"byteLength":17480,
+			"byteLength":19016,
 			"uri":"articulated_simplified.bin"
 		}
 	]

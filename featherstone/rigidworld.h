@@ -4,6 +4,7 @@
 #include "articulatedbody.hpp"
 #include "spshapes.hpp"
 #include "contact_solver.h"
+#include "loop_joint_solver.h"
 
 #include "btBulletCollisionCommon.h"
 
@@ -45,15 +46,26 @@ struct RigidWorld {
 	std::vector<std::shared_ptr<Collider>> rigid_colliders;
 	std::vector<std::vector<std::shared_ptr<Collider>>> art_colliders;
 
+	// Handle collision disabling across joints
+	struct AdjacentLinkFilter : btOverlapFilterCallback {
+		typedef std::set<int> Adjacency;
+		typedef std::map<int, Adjacency> AdjacencyMap;
+		std::vector<AdjacencyMap> collision_disable_maps;
+		void add_body(std::shared_ptr<ArticulatedBody> artbody);
+		bool needBroadphaseCollision(btBroadphaseProxy* proxy0, btBroadphaseProxy* proxy1) const override;
+	};
+
 	struct CollisionWorld {
 		std::shared_ptr<btCollisionWorld> world = nullptr;
 		std::shared_ptr<btDefaultCollisionConfiguration> config = nullptr;
 		std::shared_ptr<btCollisionDispatcher> dispatcher = nullptr;
 		std::shared_ptr<btDbvtBroadphase> broadphase = nullptr;
+		std::shared_ptr<AdjacentLinkFilter> articulation_collision_filter = nullptr;
 	};
 	std::shared_ptr<CollisionWorld> collision_world;
 
 	std::shared_ptr<ContactSolver> contact_solver;
+	std::shared_ptr<LoopJointSolver> loop_joint_solver;
 
 	static const uint32_t max_velocity_solve_iterations = 10;
 	static const uint32_t max_position_solve_iterations = 8;

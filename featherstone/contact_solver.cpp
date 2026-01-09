@@ -15,9 +15,19 @@ void ContactSolver::initialize(
 	artbody_map.clear();
 
 	// set up velocity constraints
-	vcs.resize(n_man);
+ 	vcs.clear();
 	for (int m = 0; m < n_man; ++m) {
 		btPersistentManifold* manifold = dispatcher->getManifoldByIndexInternal(m);
+		int n_cps = manifold->getNumContacts();
+		assert(n_cps >= 0);
+		if (n_cps == 0) {
+			// no effective contact point
+			continue;
+		}
+		
+		vcs.emplace_back();
+		VelocityConstraint& vc = vcs.back();
+
 		const btCollisionObject* obj0 = manifold->getBody0();
 		const btCollisionObject* obj1 = manifold->getBody1();
 		int id0 = obj0->getUserIndex();
@@ -44,13 +54,10 @@ void ContactSolver::initialize(
 			artbody_map[id1] = ab1->ab;
 		}
 
-		vcs[m].restitution_coeff = std::min(b0->restitution_coeff(), b1->restitution_coeff());
-		// vcs[m].restitution_coeff = 0.2f;
-		vcs[m].friction_coeff = std::sqrt(b0->friction_coeff() * b1->friction_coeff());
-		// vcs[m].friction_coeff = 0.4f;
+		vc.restitution_coeff = std::min(b0->restitution_coeff(), b1->restitution_coeff());
+		vc.friction_coeff = std::sqrt(b0->friction_coeff() * b1->friction_coeff());
 		
-		int n_cps = manifold->getNumContacts();
-		vcs[m].cps.resize(n_cps);
+		vc.cps.resize(n_cps);
 		for (int c = 0; c < n_cps; ++c) {
 			const btManifoldPoint& btcp = manifold->getContactPoint(c);
 			if (btcp.getLifeTime() == 1) {
@@ -61,7 +68,7 @@ void ContactSolver::initialize(
 			assert(btcp.m_userPersistentData);
 
 			Vector3f p = (EV3(btcp.m_positionWorldOnA) + EV3(btcp.m_positionWorldOnB)) * 0.5f;
-			VelocityConstraintPoint& cp = vcs[m].cps[c];
+			VelocityConstraintPoint& cp = vc.cps[c];
 			cp.bp0 = BodyContactPointVelocity::create(b0, p);
 			cp.bp1 = BodyContactPointVelocity::create(b1, p);
 
@@ -76,18 +83,48 @@ void ContactSolver::initialize(
 			cp.N_01.col(2) = n_01;
 			cp.si_n = &static_cast<ContactPersistentData*>(btcp.m_userPersistentData)->si_n;
 			cp.si_t = &static_cast<ContactPersistentData*>(btcp.m_userPersistentData)->si_t;
-			cp.eff_mass = cp.N_01.transpose() * ((cp.bp0->inv_Ic().bottomRightCorner(3, 3) + cp.bp1->inv_Ic().bottomRightCorner(3, 3)) * cp.N_01); // TODO: effective mass matrix has to be orthogal. Try and prove it
+			Unitless eff_mass = cp.N_01.transpose() * ((cp.bp0->inv_Ic().bottomRightCorner(3, 3) + cp.bp1->inv_Ic().bottomRightCorner(3, 3)) * cp.N_01); // TODO: effective mass matrix has to be orthogal. Try and prove it
+			// tangential effective mass
+			cp.eff_mass_t_solve.reset(new InvOrPinvSolver(eff_mass.topLeftCorner(2, 2)));
+
+			// normal effective mass
+			if (std::abs(eff_mass(2, 2)) < 1E-4) {
+				/*Initially I thought this could never happen because : if a mechanism does not allow dof in contact normal direction,
+				how did it come into contact with the surface in the first place?
+				But through some experimental scenes I found that if a precise edge-edge collision occurs between 2 objects,
+				detection module's behaviour can be somewhat arbitrary: generating contact normal on either side of the edge.
+				Thus the normal could go in a direction that the mechanism does not have dof of
+				*/
+
+				std::cout << "velocity solve: contact normal direction DoF lost. normal effective mass = " << eff_mass(2, 2) << ", contact normal = " << n_01.transpose() << std::endl;
+				// A big inverse effective mass, to generate a big impulse. Dof will not respond to it anyway.
+				// Not too big, in case the resulting impulse somehow multiplies with a numerical fluctuation and explodes
+				cp.eff_mass_n = 1E4;
+			}
+			else {
+				cp.eff_mass_n = 1.0f / eff_mass(2, 2);
+			}
 
 			float v_01_n = n_01.dot(cp.bp1->vc().tail<3>() - cp.bp0->vc().tail<3>());
 
-			cp.v_bias = v_01_n < -restitution_threshold ? v_01_n * vcs[m].restitution_coeff : 0.0f;
+			cp.v_bias = v_01_n < -restitution_threshold ? v_01_n * vc.restitution_coeff : 0.0f;
 		}
 	}
 
 	// set up position constraints
-	pcs.resize(n_man);
+	pcs.clear();
 	for (int m = 0; m < n_man; ++m) {
 		btPersistentManifold* manifold = dispatcher->getManifoldByIndexInternal(m);
+		int n_cps = manifold->getNumContacts();
+		assert(n_cps >= 0);
+		if (n_cps == 0) {
+			// no effective contact point
+			continue;
+		}
+
+		pcs.emplace_back();
+		PositionConstraint& pc = pcs.back();
+
 		const btCollisionObject* obj0 = manifold->getBody0();
 		const btCollisionObject* obj1 = manifold->getBody1();		
 		int id0 = obj0->getUserIndex();
@@ -110,11 +147,10 @@ void ContactSolver::initialize(
 			b1 = std::make_shared<ArticulatedBodyWrapper>(artbodies[id1], sub_id1);
 		}
 
-		int n_cps = manifold->getNumContacts();
-		pcs[m].cps.resize(n_cps);
+		pc.cps.resize(n_cps);
 		for (int c = 0; c < n_cps; ++c) {
 			const btManifoldPoint& btcp = manifold->getContactPoint(c);
-			PositionConstraintPoint& cp = pcs[m].cps[c];
+			PositionConstraintPoint& cp = pc.cps[c];
 			cp.b0 = b0;
 			cp.b1 = b1;
 			cp.local_p0 = EV3(btcp.m_localPointA);
@@ -148,12 +184,15 @@ void ContactSolver::solve_velocity() {
 			F3Subspace t3_01 = cp.N_01.leftCols(2); // 3x2
 			FCoordinates vt_01 = t3_01.transpose() * v3_01; // 2x1
 
-			// TODO: debug inf
-			if (std::abs(cp.eff_mass.topLeftCorner(2, 2).determinant()) < 1E-4) {
-				continue;
-			}
-			
-			FCoordinates lambda = -cp.eff_mass.topLeftCorner(2, 2).inverse() * vt_01; // 2x1
+			//if (std::abs(cp.eff_mass.topLeftCorner(2, 2).determinant()) < 1E-4) {
+			//	std::cout << cp.eff_mass.topLeftCorner(2, 2) << std::endl;
+			//	std::cout << "determinant = " << cp.eff_mass.topLeftCorner(2, 2).determinant() << std::endl;
+			//	std::cout << "eigenvalue = " << cp.eff_mass.topLeftCorner(2, 2).eigenvalues() << std::endl;
+			//	continue;
+			//}
+
+			// FCoordinates lambda = -cp.eff_mass_t * vt_01; // 2x1
+			FCoordinates lambda = -cp.eff_mass_t_solve->solve(vt_01); // 2x1
 			// sequential impulse
  			float max_friction = vc.friction_coeff * *cp.si_n;
  			FCoordinates new_impulse = *cp.si_t + lambda;
@@ -176,11 +215,8 @@ void ContactSolver::solve_velocity() {
 			
 			Vector3f n3_01 = cp.N_01.col(2);
 			float vn_01 = n3_01.dot(v_01.tail<3>());
-			// TODO: debug inf
-			if (std::abs(cp.eff_mass(2, 2)) < 1E-4) {
-				continue;
-			}
-			float lambda = -(vn_01 + cp.v_bias) / cp.eff_mass(2, 2);
+
+			float lambda = -(vn_01 + cp.v_bias) * cp.eff_mass_n;
 			// sequential impulse
 			float new_impulse = std::max(*cp.si_n + lambda, 0.0f);
 			lambda = new_impulse - *cp.si_n;
@@ -217,16 +253,29 @@ void ContactSolver::solve_position() {
 			penetration = std::min(0.0f, penetration);
 			// Prevent large corrections and allow slop.
 			const float baumgarte = 0.2f;
-			const float slop = 0.005f;
+			const float slop = 0.001f;
 			const float max_correction = 0.4f;
+
+			if (penetration > -slop) {
+				// no need to correct positions anymore
+				continue;
+			}
+
 			penetration = std::clamp(baumgarte * (penetration + slop), -max_correction, 0.0f);
 
-			InvDyad inv_I0 = bp0->inv_Ic();
+			InvDyad inv_I0 = bp0->inv_Ic(); 
 			InvDyad inv_I1 = bp1->inv_Ic();
 
 			// positional impulse
-			float lambda = -(penetration) / cp.n_01.dot((inv_I0 + inv_I1) * cp.n_01);
-			MVector imp_01 = lambda * cp.n_01; // impulse pointing from 0 to 1
+			float eff_mass = cp.n_01.dot((inv_I0 + inv_I1) * cp.n_01);
+			if (std::abs(eff_mass) < 1E-4) {
+				// see velocity solve initialize() for reasoning
+				std::cout << "position solve: contact normal direction DoF lost. effective mass = " << eff_mass << ", contact normal = " << cp.n_01.transpose().tail<3>() << std::endl;
+				eff_mass = 1E-4;
+			}
+			
+			float lambda = -penetration / eff_mass;
+			FVector imp_01 = lambda * cp.n_01; // impulse pointing from 0 to 1
 
 			bp0->apply_positional_impulse(-imp_01);
 			bp1->apply_positional_impulse(imp_01);

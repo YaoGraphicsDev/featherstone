@@ -34,7 +34,7 @@ glm::mat3 m3(Matrix3f M) {
 }
 
 size_t add_node_to_renderer(const SceneNode& node) {
-	assert(node.renderables.size() == 1);
+ 	assert(node.renderables.size() == 1);
 
 	// colliders
 	std::vector<Mesh> colliders;
@@ -202,17 +202,6 @@ std::shared_ptr<ArticulatedBody> create_articulated_body(const SceneGraph& graph
 		art->add_body(*rb);
 	}
 
-	// TODO: blender exclusive
-	//Eigen::Matrix3f joint_frame_blender;
-	////joint_frame_blender <<
-	////	1, 0, 0,
-	////	0, 0, -1,
-	////	0, 1, 0;
-	//joint_frame_blender <<
-	//	1, 0, 0,
-	//	0, 0, 1,
-	//	0, -1, 0;
-
 	for (const ArticulationLinkage& link : art_tree) {
 		art->add_constraint(
 			(ArticulatedBody::ConstraintType)link.joint.type,
@@ -228,18 +217,16 @@ std::shared_ptr<ArticulatedBody> create_articulated_body(const SceneGraph& graph
 
 int main() {
 	Scene scene;
-	if (!load_gltf(std::string(SCENES_DIR) + "articulated/articulated_simplified.gltf", scene, GLTFParseOption::BlenderExport)) {
+	if (!load_gltf(std::string(SCENES_DIR) + "articulated/forklift.gltf", scene, GLTFParseOption::BlenderExport)) {
 		std::cout << "error loading gltf resource" << std::endl;
 		return 0;
 	}
 
 	RigidWorldRenderer::Config renderer_config;
 	renderer_config.world_aabb = { glm::vec3(-15.0f, -1.0f, -15.0f), glm::vec3(15.0f, 20.0f, 15.0f) };
-	renderer_config.cam.position = { 15.0f, 15.0f, 15.0f };
-	renderer_config.cam.target = { 0.0f, 2.0f, 0.0f };
 	renderer_config.light_dir = { -0.5f, -1.0f, -0.4f };
-	renderer_config.cam.position = { 15.5943, 28.0221, 42.1298 };
-	renderer_config.cam.target = { 15.2499, 27.5946, 41.2939 };
+	renderer_config.cam.position = { 1.55943, 2.80221, 4.21298 };
+	renderer_config.cam.target = { 0.0f, 0.0f, 0.0f };
 	renderer = std::make_shared<RigidWorldRenderer>(renderer_config);
 
 	// add to renderer
@@ -268,9 +255,6 @@ int main() {
 	}
 	
 	auto update_world = [&](float frame_dt, size_t frame_id) {
-		if (frame_id == 210) {
-			int a = 0;
-		}
 		world->step(0.01667f);
 
 		// update all rigid bodies
@@ -294,8 +278,13 @@ int main() {
 	auto draw_articulated_joints = [&](std::shared_ptr<ArticulatedBody> artbody) {
 		for (int i = 1; i < artbody->tree_joints.size(); ++i) {
 			std::shared_ptr<ArticulatedBody::Constraint> c = artbody->tree_joints[i];
-			renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 3.0f);
-			renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 3.0f);
+			renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 1.0f);
+			renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 1.0f);
+		}
+		for (int i = 0; i < artbody->loop_joints.size(); ++i) {
+			std::shared_ptr<ArticulatedBody::Constraint> c = artbody->loop_joints[i];
+			renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 1.0f);
+			renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 1.0f);
 		}
 	};
 
