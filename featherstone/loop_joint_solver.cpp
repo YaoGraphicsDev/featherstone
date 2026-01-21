@@ -38,7 +38,7 @@ void LoopJointSolver::initialize(const std::vector<std::shared_ptr<ArticulatedBo
 			pc.bws = bws;
 			pc.local_pp = lj->bt0;
 			pc.local_ps = lj->bt1;
-			if (lj->type == ArticulatedBody::ConstraintType::Prismatic) {
+			if (lj->type == ArticulatedBody::JointType::Prismatic) {
 				F3Subspace T_linear_joint(3, 2);
 				T_linear_joint <<
 					1, 0,
@@ -46,7 +46,7 @@ void LoopJointSolver::initialize(const std::vector<std::shared_ptr<ArticulatedBo
 					0, 0;
 				pc.T_linear_ortho = XF_joint_ortho.bottomRightCorner(3, 3) * T_linear_joint;
 			}
-			else if (lj->type == ArticulatedBody::ConstraintType::Revolute) {
+			else if (lj->type == ArticulatedBody::JointType::Revolute) {
 				pc.T_linear_ortho = XF_joint_ortho.bottomRightCorner(3, 3);
 			}
 			else {
@@ -93,9 +93,9 @@ void LoopJointSolver::solve_position() {
 
 		Unitless displacement = pc.T_linear_ortho.transpose() * (ps - pp); // nx1
 		// Prevent large corrections and allow slop.
-		const float baumgarte = 0.2f;
+		const float baumgarte = 0.3f;
 		const float slop = 0.001f;
-		const float max_correction = 0.4f;
+		const float max_correction = 0.5f;
 
 		bool need_correction = false;
 		for (int i = 0; i < displacement.rows(); ++i) {

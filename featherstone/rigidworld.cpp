@@ -174,6 +174,7 @@ void RigidWorld::add_body(std::shared_ptr<ArticulatedBody> artbody) {
 		return;
 	}
 
+	artbody->build_tree();
 	artbodies.push_back(artbody);
 	artbody->set_gravity(this->gravity);
 	collision_world->articulation_collision_filter->add_body(artbody);
@@ -327,7 +328,7 @@ void RigidWorld::AdjacentLinkFilter::add_body(std::shared_ptr<ArticulatedBody> a
 		if (!joint) {
 			continue;
 		}
-		if (joint->disable_collision) {
+ 		if (joint->disable_collision) {
 			am[joint->b0->id].insert(joint->b1->id);
 			am[joint->b1->id].insert(joint->b0->id);
 		}
@@ -336,6 +337,12 @@ void RigidWorld::AdjacentLinkFilter::add_body(std::shared_ptr<ArticulatedBody> a
 		if (joint->disable_collision) {
 			am[joint->b0->id].insert(joint->b1->id);
 			am[joint->b1->id].insert(joint->b0->id);
+		}
+	}
+	for (auto constraint : artbody->constraints) {
+		if (constraint->disable_collision) {
+			am[constraint->j0->b1->id].insert(constraint->j1->b1->id);
+			am[constraint->j1->b1->id].insert(constraint->j0->b1->id);
 		}
 	}
 }

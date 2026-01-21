@@ -157,7 +157,7 @@ void ArticulatedBCPPosition::apply_positional_impulse(const FVector& imp_c) {
 	if (bw->id > 0) {
 		MCoordinates delta_q = inv_Ig * imp_c;
 		bw->ab->apply_delta_q(delta_q);
-		bw->ab->move_constraints();
+		bw->ab->move_joints();
 		bw->ab->project_position();
 	}
 }

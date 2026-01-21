@@ -6,22 +6,22 @@
 namespace SPD {
 
 
-void ArticulatedBody::move_constraints() {
+void ArticulatedBody::move_joints() {
 	for (int i = 1; i < tree_joints.size(); ++i) {
-		std::shared_ptr<Constraint> j = tree_joints[i];
+		std::shared_ptr<Joint> j = tree_joints[i];
 
 		// semi-implicit Euler
 		// j->dq += j->ddq * dt;
 		// j->q += j->dq * dt;
 
 		// TODO: update X_J0_J1
-		if (j->type == ConstraintType::Revolute) {
+		if (j->type == JointType::Revolute) {
 			j->X_J0_J1 = m_transform(
 				Eigen::Matrix3f::Identity(),
 				Eigen::AngleAxisf(j->q[0], Eigen::Vector3f::UnitZ()).toRotationMatrix(),
 				Eigen::Vector3f::Zero());
 		}
-		else if (j->type == ConstraintType::Prismatic) {
+		else if (j->type == JointType::Prismatic) {
 			j->X_J0_J1 = m_transform(
 				Eigen::Matrix3f::Identity(),
 				Eigen::Matrix3f::Identity(),
@@ -32,12 +32,12 @@ void ArticulatedBody::move_constraints() {
 		}
 
 		int Li = lambda[i];
-		std::shared_ptr<const Constraint> Ji = tree_joints[i];
+		std::shared_ptr<const Joint> Ji = tree_joints[i];
 		if (Li == 0) {
 			X_Li_[i] = Ji->X_J0_J1 * Ji->X_0_J0;
 		}
 		else {
-			std::shared_ptr<Constraint> JLi = tree_joints[Li];
+			std::shared_ptr<Joint> JLi = tree_joints[Li];
 			X_Li_[i] = Ji->X_J0_J1 * Ji->X_0_J0 * inverse_transform(JLi->X_1_J1);
 		}
 		X_0_[i] = X_Li_[i] * X_0_[Li];
@@ -48,7 +48,7 @@ void ArticulatedBody::joint_damping() {
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		tree_joints[i]->taue -= tree_joints[i]->dq * 0.99f;
 	}
-	// TODO: add effective damping to loop joints
+	// TODO: add effective damping to loop joints and constraints
 }
 
 void ArticulatedBody::clear_joint_forces() {
@@ -62,7 +62,7 @@ void ArticulatedBody::solve_ddq() {
 	FCoordinates tau;
 	MCoordinates C;
 	for (int i = 1; i < tree_joints.size(); ++i) {
-		std::shared_ptr<const Constraint> j = tree_joints[i];
+		std::shared_ptr<const Joint> j = tree_joints[i];
 		tau.conservativeResize(tau.size() + j->taue.size());
 		tau.tail(j->taue.size()) = j->taue;
 		C.conservativeResize(C.size() + j->bias.size());
@@ -75,27 +75,53 @@ void ArticulatedBody::solve_ddq() {
 	// compute loop joint force variale lambda
 	Unitless lambda = Unitless::Zero(K.rows(), 1);
 	if (!loop_joints.empty()) {
-		Unitless KHi = K * H.inverse();
-		Unitless A = KHi * K.transpose();
-		Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
-		Unitless b = _k - KHi * (tau - C);
-		// InvOrPinvSolver inv_A_solve(A);
-		// lambda = inv_A_solve.solve(b);
-		lambda = inv_A * b;
+		if (constraints.empty()) {
+			Unitless KHi = K * H.inverse();
+			Unitless A = KHi * K.transpose();
+			Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
+			Unitless b = _k - KHi * (tau - C);
+			// InvOrPinvSolver inv_A_solve(A);
+			// lambda = inv_A_solve.solve(b);
+			lambda = inv_A * b;
+		}
+		else {
+			Unitless KHi = K_reduced * H_reduced.inverse();
+			Unitless A = KHi * (K * Z).transpose(); // TODO: K * Z being redundant
+			Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
+			Unitless b = ZT * _k - KHi * (ZT * (tau - C)); // TODO: tau - C computed multiple times. Duplicated
+			// InvOrPinvSolver inv_A_solve(A);
+			// lambda = inv_A_solve.solve(b);
+			lambda = inv_A * b;
+		}
 	}
 
 
 	MCoordinates ddq = MCoordinates::Zero(H.cols(), 1);
-	if (loop_joints.empty()) {
-		ddq = H_llt.solve(tau - C);
+
+	if (constraints.empty()) {
+		if (loop_joints.empty()) {
+			ddq = H_llt.solve(tau - C);
+		}
+		else {
+			ddq = H_llt.solve(tau - C + K.transpose() * lambda);
+		}
 	}
 	else {
-		ddq = H_llt.solve(tau - C + K.transpose() * lambda);
+		MCoordinates ddq_reduced;
+		if (loop_joints.empty()) {
+			ddq_reduced = H_reduced_llt.solve(ZT * (tau - C));
+		}
+		else {
+			ddq_reduced = H_reduced_llt.solve(ZT * (tau - C) + (K * Z).transpose() * lambda);
+		}
+		
+		// recover full ddq from reduced
+		ddq = Z * ddq_reduced;
 	}
 
 	int count = 0;
 	for (int i = 1; i < tree_joints.size(); ++i) {
-		std::shared_ptr<Constraint> j = tree_joints[i];
+		std::shared_ptr<Joint> j = tree_joints[i];
 		j->ddq = ddq.segment(count, j->ddq.rows());
 		count += j->ddq.rows();
 	}
@@ -103,7 +129,7 @@ void ArticulatedBody::solve_ddq() {
 
 //void ArticulatedBody::step(float dt) {
 //	assert(false);
-//	move_constraints(dt);
+//	move_joints(dt);
 //	move_bodies();
 //
 //	compute_bias_RNEA();
@@ -125,21 +151,21 @@ void ArticulatedBody::integrate_velocity(float dt) {
 	solve_ddq();
 	clear_joint_forces();
 	for (int i = 1; i < tree_joints.size(); ++i) {
-		std::shared_ptr<Constraint> j = tree_joints[i];
+		std::shared_ptr<Joint> j = tree_joints[i];
 		j->dq += j->ddq * dt;
 	}
 
 	// TODO: this should be useless. As contact solver only uses joint space velocity 
 	// and will also project velocity after it's done iterating
-	project_velocity();
+	// project_velocity();
 }
 
 void ArticulatedBody::integrate_position(float dt) {
 	for (int i = 1; i < tree_joints.size(); ++i) {
-		std::shared_ptr<Constraint> j = tree_joints[i];
+		std::shared_ptr<Joint> j = tree_joints[i];
 		j->q += j->dq * dt;
 	}
-	move_constraints();
+	move_joints();
 	project_position();
 }
 
@@ -148,7 +174,7 @@ void ArticulatedBody::project_velocity() {
 		int Li = lambda[i];
 		std::shared_ptr<Body> Bi = bodies[i];
 		std::shared_ptr<const Body> BLi = bodies[Li];
-		std::shared_ptr<const Constraint> Ji = tree_joints[i];
+		std::shared_ptr<const Joint> Ji = tree_joints[i];
 
 		MVector& vi = Bi->v;
 		// MVector& ai = Bi->a;
@@ -164,18 +190,9 @@ void ArticulatedBody::project_velocity() {
 	}
 }
 
-//std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::add_body(std::shared_ptr<Shape> shape, Eigen::Quaternionf rotation, Eigen::Vector3f translation) {
-//	std::shared_ptr<Body> body = std::make_shared<Body>();
-//	body->shape = shape;
-//	body->rotation = rotation;
-//	body->translation = translation;
-//	body->bases = rotation.toRotationMatrix();
-//	bodies.push_back(body);
-//	return body;
-//}
-
 std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::add_body(const RigidBody& rb) {
 	std::shared_ptr<Body> body = std::make_shared<Body>();
+	body->name = rb.name;
 	body->shape = rb.shape;
 	body->rotation = rb.rotation;
 	body->translation = rb.translation;
@@ -187,24 +204,27 @@ std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::add_body(const RigidBody
 	return body;
 }
 
-std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
-	ConstraintType type,
+std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
+	std::string name,
+	JointType type,
 	size_t id0,
 	size_t id1,
 	Eigen::Matrix3f base0,
 	Eigen::Vector3f trans0) {
-	return add_constraint(type, bodies[id0], bodies[id1], base0, trans0);
+	return add_joint(name, type, bodies[id0], bodies[id1], base0, trans0);
 }
 
-std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
-	ConstraintType type,
+std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
+	std::string name,
+	JointType type,
 	std::shared_ptr<Body> b0,
 	std::shared_ptr<Body> b1,
 	Eigen::Matrix3f base0,
 	Eigen::Vector3f trans0) {
 
 	assert(b0 && b1);
-	std::shared_ptr<Constraint> c = std::make_shared<Constraint>();
+	std::shared_ptr<Joint> c = std::make_shared<Joint>();
+	c->name = name;
 	c->type = type;
 	c->b0 = b0;
 	c->b1 = b1;
@@ -220,7 +240,7 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
 	c->S = &S.at(type);
 	c->T = &T.at(type);
 	c->Ta = &Ta.at(type);
-	if (type == ConstraintType::Revolute) {
+	if (type == JointType::Revolute) {
 		c->q.resize(1, 1);
 		c->q << 0.0f;
 		c->dq.resize(1, 1);
@@ -231,7 +251,7 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
 		c->bias << 0.0f;
 		c->taue.resize(1, 1);
 		c->taue << 0.0f;
-	} else if(type == ConstraintType::Prismatic) {
+	} else if(type == JointType::Prismatic) {
 		c->q.resize(1, 1);
 		c->q << 0.0f;
 		c->dq.resize(1, 1);
@@ -260,6 +280,40 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(
 	return c;
 }
 
+std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::get_joint(const std::string& name) const {
+	for (auto j : tree_joints) {
+		if (!j) {
+			continue;
+		}
+		if (j->name == name) {
+			return j;
+		}
+	}
+	for (auto j : loop_joints) {
+		if (j->name == name) {
+			return j;
+		}
+	}
+	return nullptr;
+}
+
+std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(std::string name, std::shared_ptr<Joint> j0, std::shared_ptr<Joint> j1, float r01) {
+	if (j0->S->cols() != 1 || j1->S->cols() != 1) {
+		// Does not work on joints that have more than 1 dimensional motion subspace
+		assert(false);
+		return nullptr;
+	}
+
+	std::shared_ptr<Constraint> c = std::make_shared<Constraint>();
+	c->name = name;
+	c->j0 = j0;
+	c->j1 = j1;
+	c->r01 = r01;
+
+	constraints.push_back(c);
+	return c;
+}
+
 bool ArticulatedBody::build_tree() {
 	// breadth first
  	std::vector<std::shared_ptr<Body>> sorted_bodies;
@@ -271,7 +325,7 @@ bool ArticulatedBody::build_tree() {
 		std::shared_ptr<Body> b = q.front();
 		sorted_bodies.push_back(b);
 		q.pop();
-		for (std::shared_ptr<Constraint> c : b->children_joints) {
+		for (std::shared_ptr<Joint> c : b->children_joints) {
 			if (visited.find(c->b1.get()) == visited.end()) {
 				// body not visited yet, no loop
 				q.push(c->b1);
@@ -281,7 +335,7 @@ bool ArticulatedBody::build_tree() {
 				// loop
 				// 1. store loop joint 2. remove parent joint
 				loop_joints.push_back(c);
-				c->b1->parent_joints.remove_if([&](std::shared_ptr<Constraint> j) {
+				c->b1->parent_joints.remove_if([&](std::shared_ptr<Joint> j) {
 					return j.get() == c.get();
 				});
 			}
@@ -294,7 +348,7 @@ bool ArticulatedBody::build_tree() {
 		bodies[i]->id = i;
 	}
 	
-	std::vector<std::shared_ptr<Constraint>> sorted_joints(bodies.size(), nullptr);
+	std::vector<std::shared_ptr<Joint>> sorted_joints(bodies.size(), nullptr);
 	for (int i = 1; i < bodies.size(); ++i) {
 		if (bodies[i]->parent_joints.empty()) {
 			// this body is not connected to the tree
@@ -304,6 +358,13 @@ bool ArticulatedBody::build_tree() {
 		sorted_joints[i] = *bodies[i]->parent_joints.begin();
 	}
 	tree_joints = std::move(sorted_joints);
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		tree_joints[i]->id = i;
+	}
+	for (int i = 0; i < loop_joints.size(); ++i) {
+		loop_joints[i]->id = -1;
+	}
+	
 
 	// build flat tree structures
 	// lambda -- parent body
@@ -337,7 +398,7 @@ bool ArticulatedBody::build_tree() {
 	X_Li_.resize(bodies.size());
 	X_Li_[0] = MTransform::Identity();
 
-	move_constraints();
+	move_joints();
 
 	// configure Xp and Xs
 	for (auto& j : loop_joints) {
@@ -347,7 +408,7 @@ bool ArticulatedBody::build_tree() {
 			XP.push_back(j->X_0_J0);
 		}
 		else {
-			std::shared_ptr<Constraint> pj = tree_joints[pb->id]; // joint supporting predecessor body
+			std::shared_ptr<Joint> pj = tree_joints[pb->id]; // joint supporting predecessor body
 			XP.push_back(j->X_0_J0 * inverse_transform(pj->X_1_J1));
 		}
 	}
@@ -358,7 +419,7 @@ bool ArticulatedBody::build_tree() {
 			XS.push_back(j->X_1_J1);
 		}
 		else {
-			std::shared_ptr<Constraint> pj = tree_joints[sb->id]; // joint supporting predecessor body
+			std::shared_ptr<Joint> pj = tree_joints[sb->id]; // joint supporting predecessor body
 			XS.push_back(j->X_1_J1 * inverse_transform(pj->X_1_J1));
 		}
 	}
@@ -392,6 +453,31 @@ bool ArticulatedBody::build_tree() {
 		_k = GPower::Zero(k_acc->total_rows(), k_acc->total_cols());
 	}
 
+	// configure constraints
+	for (std::shared_ptr<Constraint> c : constraints) {
+		c->C = MCoordinates::Zero(H.cols(), 1);
+		int j0_id = c->j0->id;
+		int j1_id = c->j1->id;
+		assert(j0_id > 0 && j1_id > 0); // constrained joints cannot be loop joints
+		c->C(H_acc->blocks[j0_id - 1][j0_id - 1].start_col) = 1.0f;
+		c->C(H_acc->blocks[j1_id - 1][j1_id - 1].start_col) = c->r01;
+	}
+
+	if (!constraints.empty()) {
+		// build constraint matrix
+		Unitless C = Unitless::Zero(H.cols(), constraints.size());
+		for (int i = 0; i < constraints.size(); ++i) {
+			C.col(i) = constraints[i]->C;
+		}
+
+		// compute ortho complement of constraint matrix
+		Z = ortho_complement_QR(C);
+		ZT = Z.transpose();
+
+		// If Z has 0 columns, that means all dofs are lost, fully constrained
+		assert(Z.cols() > 0);
+	}
+
 	return true;
 }
 
@@ -403,10 +489,10 @@ void ArticulatedBody::project_position() {
 
 		Eigen::Matrix3f joint_bases0_world = pb->bases * pj->bb0;
 		Eigen::Matrix3f joint_bases1_world = joint_bases0_world;
-		if (pj->type == ConstraintType::Revolute) {
+		if (pj->type == JointType::Revolute) {
 			joint_bases1_world = Eigen::AngleAxisf(pj->q(0, 0), joint_bases0_world.col(2)).toRotationMatrix() * joint_bases0_world;
 		}
-		else if (pj->type == ConstraintType::Prismatic) {
+		else if (pj->type == JointType::Prismatic) {
 			joint_bases1_world = joint_bases0_world;
 		}
 		else {
@@ -415,10 +501,10 @@ void ArticulatedBody::project_position() {
 
 		Eigen::Vector3f joint_translation0_world = pb->bases * pj->bt0 + pb->translation;
 		Eigen::Vector3f joint_translation1_world = joint_translation0_world;
-		if (pj->type == ConstraintType::Revolute) {
+		if (pj->type == JointType::Revolute) {
 			joint_translation1_world = joint_translation0_world;
 		}
-		else if (pj->type == ConstraintType::Prismatic) {
+		else if (pj->type == JointType::Prismatic) {
 			joint_translation1_world = joint_bases0_world.col(2) * pj->q(0, 0) + joint_translation0_world;
 		}
 		else {
@@ -458,6 +544,11 @@ MSubspace ArticulatedBody::jacobian_0(size_t body_id) {
 		J0.middleCols(start_col, s.cols()) = inverse_transform(X_0_[i]) * s;
 		i = lambda[i];
 	}
+
+	if (!constraints.empty()) {
+		J0 = J0 * Z;
+	}
+
 	return J0;
 }
 
@@ -471,20 +562,30 @@ MCoordinates ArticulatedBody::dq(size_t body_id) {
 	assert(body_id < bodies.size());
 	assert(H.rows() == H.cols());
 	assert(body_id <= H_acc->blocks.size());
-	// int n_rows = 0;
 	size_t i = body_id;
-	// std::deque<MCoordinates> dq_vec;
-	while (i != 0) {
-		const MCoordinates& dq = tree_joints[i]->dq;
-		int start_row = H_acc->blocks[i - 1][i - 1].start_row;
-		assert(H_acc->blocks[i - 1][i - 1].rows == dq.size());
-		dq_chain.segment(start_row, dq.size()) = dq;
-		i = lambda[i];
+
+	// unlike the Jacobian
+	// we need a full chain of dq because constrained joints may not be on the tree to the root
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		int offset = H_acc->blocks[i - 1][i - 1].start_row;
+		int n = H_acc->blocks[i - 1][i - 1].rows;
+		dq_chain.segment(offset, n) = tree_joints[i]->dq;
 	}
+
+
+	if (!constraints.empty()) {
+		dq_chain = ZT * dq_chain;
+	}
+
 	return dq_chain;
 }
 
 void ArticulatedBody::apply_delta_dq(MCoordinates delta_dq) {
+	if (!constraints.empty()) {
+		assert(delta_dq.rows() == H_reduced.cols());
+		delta_dq = Z * delta_dq;
+	}
+
 	assert(delta_dq.rows() == H.cols());
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		int offset = H_acc->blocks[i - 1][i - 1].start_col;
@@ -495,6 +596,11 @@ void ArticulatedBody::apply_delta_dq(MCoordinates delta_dq) {
 }
 
 void ArticulatedBody::apply_delta_q(MCoordinates delta_q) {
+	if (!constraints.empty()) {
+		assert(delta_q.rows() == H_reduced.cols());
+		delta_q = Z * delta_q;
+	}
+
 	assert(delta_q.rows() == H.cols());
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		int offset = H_acc->blocks[i - 1][i - 1].start_col;
@@ -505,11 +611,17 @@ void ArticulatedBody::apply_delta_q(MCoordinates delta_q) {
 }
 
 JDyad ArticulatedBody::H_inv(const Unitless& J) {
-	return H_llt.solve(J);
+	if (constraints.empty()) {
+		return H_llt.solve(J);
+	}
+	else {
+		return H_reduced_llt.solve(J);
+	}
 }
 
 // treats loop joint active force as external force
 // loop joint constraint force will be taken care of by the acceleration constraint
+// Same applies to constraints and as constraints do not provide active force, they do not participate in RNEA
 void ArticulatedBody::compute_bias_RNEA() {
 	MVector v0 = MVector::Zero();
 	MVector aw;
@@ -525,7 +637,7 @@ void ArticulatedBody::compute_bias_RNEA() {
 		int Li = lambda[i];
 		std::shared_ptr<const Body> Bi = bodies[i];
 		std::shared_ptr<const Body> BLi = bodies[Li];
-		std::shared_ptr<const Constraint> Ji = tree_joints[i];
+		std::shared_ptr<const Joint> Ji = tree_joints[i];
 
 		const MVector& vi = Bi->v;
 		const MVector& vLi = BLi->v;
@@ -542,7 +654,7 @@ void ArticulatedBody::compute_bias_RNEA() {
 	}
 	// account for loop joint active force
 	for (int k = 0; k < loop_joints.size(); ++k) {
-		std::shared_ptr<Constraint> l = loop_joints[k];
+		std::shared_ptr<Joint> l = loop_joints[k];
 		FVector fa = transpose_transform(XS[k]) * *(l->Ta) * l->taue; // conceptually it should be the dual of the inverse of XS
 		//std::cout << XS[k] << std::endl;
 		//std::cout << l->Ta->transpose() << std::endl;
@@ -584,13 +696,19 @@ void ArticulatedBody::compute_H() {
 			H_acc->block(H, j - 1, i - 1) = H_acc->block(H, i - 1, j - 1).transpose();
 		}
 	}
+
 	H_llt = H.llt();
+
+	if (!constraints.empty()) {
+		H_reduced = ZT * H * Z;
+		H_reduced_llt = H_reduced.llt();
+	}
 }
 
-GPower ArticulatedBody::compute_delta(ConstraintType type, const MTransform& X) {
+GPower ArticulatedBody::compute_delta(JointType type, const MTransform& X) {
 	GPower delta;
 	delta.resize(T.at(type).cols(), 1);
-	if (type == ConstraintType::Prismatic) {
+	if (type == JointType::Prismatic) {
 		delta <<
 			(X(1, 2) - X(2, 1)) * 0.5f,
 			(X(2, 0) - X(0, 2)) * 0.5f,
@@ -598,7 +716,7 @@ GPower ArticulatedBody::compute_delta(ConstraintType type, const MTransform& X) 
 			X(4, 2),
 			-X(3, 2);
 	}
-	else if (type == ConstraintType::Revolute) {
+	else if (type == JointType::Revolute) {
 		delta <<
 			X(1, 2),
 			-X(0, 2),
@@ -643,6 +761,10 @@ void ArticulatedBody::compute_K_k() {
 				j = lambda[j];
 			}
 		}
+	}
+
+	if (!constraints.empty()) {
+		K_reduced = ZT * K * Z;
 	}
 }
 

@@ -14,14 +14,15 @@
 namespace SPD {
 
 struct ArticulatedBody {
-	struct Constraint;
+	struct Joint;
 
 	struct Body {
+		std::string name = "";
 		std::shared_ptr<Shape> shape = nullptr;
 
 		// values determined by the time constraint is set
-		std::list<std::shared_ptr<Constraint>> parent_joints; // loop joints will get picked out when building tree. There will only be one parent joint per body left after build_tree() is done
-		std::vector<std::shared_ptr<Constraint>> children_joints;
+		std::list<std::shared_ptr<Joint>> parent_joints; // loop joints will get picked out when building tree. There will only be one parent joint per body left after build_tree() is done
+		std::vector<std::shared_ptr<Joint>> children_joints;
 		Dyad I = Dyad::Identity();
 
 		// values set when building dynamic tree
@@ -66,14 +67,15 @@ struct ArticulatedBody {
 
 	std::shared_ptr<Body> add_body(const RigidBody& rb);
 
-	enum class ConstraintType {
+	enum class JointType {
 		Revolute = 0,
 		Prismatic,
 		Ball,
 		Free
 	};
-	struct Constraint {
-		ConstraintType type;
+	struct Joint {
+		std::string name;
+		JointType type;
 		std::shared_ptr<Body> b0;
 		std::shared_ptr<Body> b1;
 		Eigen::Matrix3f bb0; // bases of joint space, in body 0 origin space
@@ -94,32 +96,39 @@ struct ArticulatedBody {
 		FCoordinates taue; // external joint force, set by external source
 
 		bool disable_collision = true; // disable collision across joint
+
+		// values set when building dynamic tree
+		int id;
 	};
-	//struct RevoluteJoint : public Constraint {
 
-	//};
-	//struct PrismaticJoint : public Constraint {
-	//	MSubspace<1> S;
-	//	MCoordinate<1> q;
-	//};
-	// ball joint is more complicated than this. See page 80 of the book
-	//struct BallJoint : public Constraint {
-	//	Eigen::Matrix3f q;
-	//};
-
-	std::shared_ptr<Constraint> add_constraint(
-		ConstraintType type,
+	std::shared_ptr<Joint> add_joint(
+		std::string name,
+		JointType type,
 		size_t id0,
 		size_t id1,
 		Eigen::Matrix3f base0,
 		Eigen::Vector3f trans0);
 
-	std::shared_ptr<Constraint> add_constraint(
-		ConstraintType type,
+	std::shared_ptr<Joint> add_joint(
+		std::string name,
+		JointType type,
 		std::shared_ptr<Body> b0,
 		std::shared_ptr<Body> b1,
 		Eigen::Matrix3f base0,
 		Eigen::Vector3f trans0);
+
+	std::shared_ptr<Joint> get_joint(const std::string& name) const;
+
+	// gear/belt/rack-and-pinion
+	struct Constraint {
+		std::string name;
+		std::shared_ptr<Joint> j0;
+		std::shared_ptr<Joint> j1;
+		float r01; // motion ratio of joint 1 over joint 0
+		MCoordinates C; // set by build_tree()
+		bool disable_collision = true;
+	};
+	std::shared_ptr<Constraint> add_constraint(std::string name, std::shared_ptr<Joint> j0, std::shared_ptr<Joint> j1, float r01);
 
 	bool build_tree();
 
@@ -131,7 +140,7 @@ struct ArticulatedBody {
 
 	void project_position();
 
-	void move_constraints();
+	void move_joints();
 	
 	// body_id -- contact body
 	// return Jacobian in body0 space
@@ -157,29 +166,29 @@ struct ArticulatedBody {
 
 	void compute_H(); // joint space inertia matrix
 
-	GPower compute_delta(ConstraintType type, const MTransform& X); // positional error of loop joints
+	GPower compute_delta(JointType type, const MTransform& X); // positional error of loop joints
 
 	void compute_K_k(); // joint space acceleration constraint parameters
 
 	// joint motion subspace
-	const std::map<ConstraintType, MSubspace> S = {
-		{ConstraintType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
-		{ConstraintType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
+	const std::map<JointType, MSubspace> S = {
+		{JointType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
+		{JointType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
 	}; 
 	// joint active force subspace
-	const std::map<ConstraintType, FSubspace> Ta = {
-		{ConstraintType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
-		{ConstraintType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
+	const std::map<JointType, FSubspace> Ta = {
+		{JointType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
+		{JointType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
 	};
 	// joint constraint force subspace
-	const std::map<ConstraintType, FSubspace> T = {
-		{ConstraintType::Prismatic, subspace({
+	const std::map<JointType, FSubspace> T = {
+		{JointType::Prismatic, subspace({
 			{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
 			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }})},
-		{ConstraintType::Revolute, subspace({
+		{JointType::Revolute, subspace({
 			{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
@@ -190,8 +199,9 @@ struct ArticulatedBody {
 	Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> subspace(std::initializer_list<std::array<float, 6>> columns);
 
 	std::vector<std::shared_ptr<Body>> bodies;
-	std::vector<std::shared_ptr<Constraint>> tree_joints;
-	std::vector<std::shared_ptr<Constraint>> loop_joints;
+	std::vector<std::shared_ptr<Joint>> tree_joints;
+	std::vector<std::shared_ptr<Joint>> loop_joints;
+	std::vector<std::shared_ptr<Constraint>> constraints; // a constraint will always create a loop
  	std::vector<int> lambda;
 	std::vector<std::set<int>> mu;
 	std::vector<std::set<int>> nu;
@@ -215,8 +225,15 @@ struct ArticulatedBody {
 	Eigen::LLT<JDyad> H_llt;
 	std::shared_ptr<BlockAccess> H_acc = nullptr;
 
+	Unitless Z; // orthogonal complement of constraint 
+	Unitless ZT;
+
+	JDyad H_reduced; // Z^T H Z
+	Eigen::LLT<JDyad> H_reduced_llt;
+
 	GPower K;
 	std::shared_ptr<BlockAccess> K_acc;
+	GPower K_reduced; // Z^T K Z
 
 	GPower _k;
 	std::shared_ptr<BlockAccess> k_acc;

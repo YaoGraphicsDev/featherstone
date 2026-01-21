@@ -106,6 +106,28 @@ inline InvDyad transform_inv_dyad2(const MTransform X_b_a, const InvDyad& inv_Ia
 	return inverse_transform(X_b_a) * inv_Ia * dual_transform(X_b_a);
 }
 
+inline Unitless null_space_QR(const Unitless& A, float tolerance = 1E-9) {
+	// https://scicomp.stackexchange.com/a/2511
+	Eigen::ColPivHouseholderQR<Unitless> qr(A.transpose());
+	qr.setThreshold(tolerance);
+	int r = qr.rank(); // number of entries on the main diagonal of R whose magnitude exceeds tolerance
+	
+	Unitless Q = qr.householderQ();
+	Unitless N = Q.rightCols(A.cols() - r);
+	return N;
+}
+
+inline Unitless ortho_complement_QR(const Unitless& A, float tolerance = 1E-9) {
+	// https://scicomp.stackexchange.com/a/2511
+	Eigen::ColPivHouseholderQR<Unitless> qr(A);
+	qr.setThreshold(tolerance);
+	int r = qr.rank(); // number of entries on the main diagonal of R whose magnitude exceeds tolerance
+
+	Unitless Q = qr.householderQ();
+	Unitless N = Q.rightCols(A.rows() - r);
+	return N;
+}
+
 struct BlockAccess {
 	typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> MType;
 

@@ -92,7 +92,7 @@ void ContactSolver::initialize(
 				/*Initially I thought this could never happen because : if a mechanism does not allow dof in contact normal direction,
 				how did it come into contact with the surface in the first place?
 				But through some experimental scenes I found that if a precise edge-edge collision occurs between 2 objects,
-				detection module's behaviour can be somewhat arbitrary: generating contact normal on either side of the edge.
+				detection module's behaviour can be somewhat arbitrary: generating contact normal on either face of the edge.
 				Thus the normal could go in a direction that the mechanism does not have dof of
 				*/
 

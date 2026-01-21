@@ -13,6 +13,7 @@ struct RigidBody {
 	};
 
 	struct Config {
+		std::string name = "";
 		std::shared_ptr<Shape> shape = nullptr;
 		Eigen::Quaternionf rotation = Eigen::Quaternionf::Identity();
 		Eigen::Vector3f translation = Eigen::Vector3f::Zero();
@@ -23,6 +24,7 @@ struct RigidBody {
 	};
 
 	RigidBody(const Config& config) {
+		name = config.name;
 		shape = config.shape;
 		rotation = config.rotation;
 		translation = config.translation;
@@ -48,6 +50,7 @@ struct RigidBody {
 		friction_coeff = config.friction_coeff;
 	}
 
+	std::string name = "";
 	std::shared_ptr<Shape> shape = nullptr;
 	Eigen::Quaternionf rotation = Eigen::Quaternionf::Identity();
 	Eigen::Vector3f translation = Eigen::Vector3f::Zero();
