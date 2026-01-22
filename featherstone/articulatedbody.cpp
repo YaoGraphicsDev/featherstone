@@ -147,9 +147,9 @@ void ArticulatedBody::integrate_velocity(float dt) {
 	if (!loop_joints.empty()) {
 		compute_K_k();
 	}
-	joint_damping();
+	// joint_damping();
 	solve_ddq();
-	clear_joint_forces();
+	// clear_joint_forces();
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<Joint> j = tree_joints[i];
 		j->dq += j->ddq * dt;
@@ -656,9 +656,6 @@ void ArticulatedBody::compute_bias_RNEA() {
 	for (int k = 0; k < loop_joints.size(); ++k) {
 		std::shared_ptr<Joint> l = loop_joints[k];
 		FVector fa = transpose_transform(XS[k]) * *(l->Ta) * l->taue; // conceptually it should be the dual of the inverse of XS
-		//std::cout << XS[k] << std::endl;
-		//std::cout << l->Ta->transpose() << std::endl;
-		//std::cout << l->taue.transpose() << std::endl;
 		int pk = l->b0->id;
 		int sk = l->b1->id;
 		f[sk] -= fa;

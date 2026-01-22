@@ -1,6 +1,9 @@
 #include "demo_common.h"
+#include "command_server.h"
+#include "json.hpp" // nlohmann json
 
 #include <iostream>
+#include <sstream>
 
 using namespace Eigen;
 using namespace SPD;
@@ -27,7 +30,7 @@ int main() {
 	assert(scene.art_forest.size() == 1);
 	std::shared_ptr<ArticulatedBody> artbody = create_articulated_body(scene.graph, scene.art_groups[0], scene.art_forest[0]);
 
-	// configure constraints manually. Havent found a way to store this in a .gltf
+	// configure constraints manually. Havent yet found a way to store this in a .gltf
 	std::shared_ptr<ArticulatedBody::Joint> drive = artbody->get_joint("driving_revolute");
 	std::shared_ptr<ArticulatedBody::Joint> rack = artbody->get_joint("rack_prismatic");
 	std::shared_ptr<ArticulatedBody::Joint> follow = artbody->get_joint("following_revolute");
@@ -57,7 +60,86 @@ int main() {
 		g_world->add_body(rigidbodies.back());
 	}
 
+	// PD control parameters
+	float kp = -60.0f;
+	float kd = -40.0f;
+
+	// start up command server
+	CommandServerWin server(7777);
+	server.start();
+
+	auto command_handler = [&](std::optional<std::string> line) {
+		if (!line.has_value()) {
+			return;
+		}
+
+		std::istringstream iss(*line);
+		std::string cmd;
+		std::string param;
+		float value;
+		nlohmann::json j;
+		iss >> cmd;
+		if (cmd == "ls") {
+			iss >> param;
+			if (param == "joints") {
+				for (int i = 1; i < artbody->tree_joints.size(); ++i) {
+					j["tree"][i - 1] = artbody->tree_joints[i]->name;
+				}
+				for (int i = 0; i < artbody->loop_joints.size(); ++i) {
+					j["loop"][i] = artbody->loop_joints[i]->name;
+				}
+				server.send_reply(j.dump(4));
+			}
+			else if (param == "bodies") {
+				std::string names;
+				for (auto b : artbody->bodies) {
+					j.push_back(b->name);
+				}
+				server.send_reply(j.dump(4));
+			}
+			else {
+				server.send_reply("invalid parameter for [ls]");
+			}
+		}
+		else if (cmd == "apply_tau") {
+			iss >> param;
+			if (auto joint = artbody->get_joint(param)) {
+				iss >> value;
+				assert(joint->taue.rows() == 1);
+				joint->taue(0) = value;
+				server.send_reply("tau applies to " + joint->name + ", value = " + std::to_string(value));
+			}
+			else {
+				server.send_reply("Cannot find joint [" + param + "]");
+			}
+		}
+		else if (cmd == "pd") {
+			iss >> param;
+			if (param == "set") {
+				iss >> kp;
+				iss >> kd;
+				server.send_reply("PD parameters: kp = " + std::to_string(kp) + ", kd = " + std::to_string(kd));
+			}
+			else if (param == "get") {
+				server.send_reply("PD parameters: kp = " + std::to_string(kp) + ", kd = " + std::to_string(kd));
+			}
+			else {
+				server.send_reply("invalid PD control command parameter [" + param + "]");
+			}
+		}
+		else {
+			server.send_reply("invalid command");
+		}
+	};
+
 	auto update_world = [&](float frame_dt, size_t frame_id) {
+		// parse command line
+		auto cmd_line = server.try_pop_command();
+		command_handler(cmd_line);
+
+		// PD control
+		artbody->get_joint("driving_revolute")->taue = kp * artbody->get_joint("measure")->q + kd * artbody->get_joint("measure")->dq;
+
 		g_world->step(0.01667f);
 
 		// update all rigid bodies
@@ -98,6 +180,8 @@ int main() {
 	// opts.show_light_config = true;
 	opts.movable_light = true;
 	g_renderer->run(update_world, debug_draw, opts);
+
+	server.stop();
 
 	return 0;
 }

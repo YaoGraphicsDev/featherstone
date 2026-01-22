@@ -1,4 +1,6 @@
-#include "command_server.hpp"
+#include "command_server.h"
+#include <iostream>
+#include <thread>
 
 int main() {
     CommandServerWin server(7777);
@@ -13,7 +15,7 @@ int main() {
             std::cout << "[command] " << *cmd << std::endl;
             server.send_reply("Relply to command: " + *cmd);
         }
-        Sleep(300);
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
         std::cout << "Frame " << frame_id++ << std::endl;
     }
 
