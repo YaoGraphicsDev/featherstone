@@ -31,7 +31,12 @@ public:
 
 	RigidWorldRenderer(Config config);
 
+
 	~RigidWorldRenderer();
+
+	void save_config_json();
+
+	bool load_config_json(Config& cfg);
 
 	enum class Shape {
 		Cuboid = 0,

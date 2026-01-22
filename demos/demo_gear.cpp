@@ -96,6 +96,7 @@ int main() {
 
 	RigidWorldRenderer::Options opts;
 	// opts.show_light_config = true;
+	opts.movable_light = true;
 	g_renderer->run(update_world, debug_draw, opts);
 
 	return 0;

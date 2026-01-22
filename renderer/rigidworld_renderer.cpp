@@ -1,8 +1,10 @@
 #include <iostream>
 #include <string>
+#include <fstream>
 #include "rigidworld_renderer_utils.hpp"
 #include "raymath.h"
 #include "rlgl.h"
+#include "json.hpp" // nlohmann json
 
 #include "rigidworld_renderer.h"
 
@@ -59,6 +61,12 @@ void UnloadShadowmapRenderTexture(RenderTexture2D target)
 }
 
 RigidWorldRenderer::RigidWorldRenderer(Config config) {
+    Config saved_config;
+    if (load_config_json(saved_config)) {
+        // if saved config exists, overwrite config parameter
+        config = saved_config;
+    }
+
     _camera = config.cam;
 
     SetConfigFlags(FLAG_MSAA_4X_HINT);
@@ -87,8 +95,134 @@ RigidWorldRenderer::~RigidWorldRenderer() {
     destroy_shaders();
     UnloadShadowmapRenderTexture(_shadowmap);
 
+    save_config_json();
+
     CloseWindow();
 }
+
+void RigidWorldRenderer::save_config_json() {
+    std::string filename = "./rigidworld_renderer_config.json";
+
+    auto v3_to_json = [](float x, float y, float z) {
+        return nlohmann::json::array({ x, y, z });
+    };
+
+    nlohmann::json j;
+
+    // Window / perf
+    j["screen_width"] = GetScreenWidth();
+    j["screen_height"] = GetScreenHeight();
+
+    // raylib does not expose target FPS; GetFPS() is "current measured FPS".
+    // If you want the target FPS, store it as a member and serialize that instead.
+    j["fps"] = 60.0f;
+
+    // Camera
+    j["cam"] = {
+        {"position",   v3_to_json(_camera.position.x, _camera.position.y, _camera.position.z)},
+        {"target",     v3_to_json(_camera.target.x,   _camera.target.y,   _camera.target.z)},
+        {"up",         v3_to_json(_camera.up.x,       _camera.up.y,       _camera.up.z)},
+        {"fovy",       _camera.fovy},
+        {"projection", _camera.projection}
+    };
+
+    // Light direction: your runtime light dir lives in _light_obb.bases[2]
+    {
+        glm::vec3 light_dir = _light_obb.bases[2];
+        j["light_dir"] = v3_to_json(light_dir.x, light_dir.y, light_dir.z);
+    }
+
+    // World AABB
+    j["world_aabb"] = {
+        {"min", v3_to_json(_world_aabb.min.x, _world_aabb.min.y, _world_aabb.min.z)},
+        {"max", v3_to_json(_world_aabb.max.x, _world_aabb.max.y, _world_aabb.max.z)}
+    };
+
+    std::ofstream os(filename, std::ios::out | std::ios::trunc);
+    if (!os.is_open()) {
+        std::cout << "renderer failed to open " << filename << " for writing" << std::endl;
+        return;
+    }
+    os << j.dump(4);
+}
+
+bool RigidWorldRenderer::load_config_json(Config& cfg) {
+    std::string filename = "./rigidworld_renderer_config.json";
+
+    // Helpers
+    auto read_vec3_array = [](const nlohmann::json& a, float& x, float& y, float& z) -> bool {
+        if (!a.is_array() || a.size() != 3) return false;
+        if (!a[0].is_number() || !a[1].is_number() || !a[2].is_number()) return false;
+        x = a[0].get<float>();
+        y = a[1].get<float>();
+        z = a[2].get<float>();
+        return true;
+    };
+
+    std::ifstream is(filename);
+    if (!is.is_open()) {
+        return false; // No saved config is not an error
+    }
+
+    nlohmann::json j;
+    is >> j;
+    if (!j.is_object())
+        return false;
+
+    // Screen
+    if (j.contains("screen_width") && j["screen_width"].is_number_integer())
+        cfg.screen_width = j["screen_width"].get<int>();
+    if (j.contains("screen_height") && j["screen_height"].is_number_integer())
+        cfg.screen_height = j["screen_height"].get<int>();
+
+    // FPS
+    if (j.contains("fps") && j["fps"].is_number_integer())
+        cfg.fps = j["fps"].get<int>();
+
+    // Camera
+    if (j.contains("cam") && j["cam"].is_object()) {
+        const auto& jc = j["cam"];
+
+        if (jc.contains("position")) {
+            float x, y, z;
+            if (read_vec3_array(jc["position"], x, y, z)) cfg.cam.position = { x, y, z };
+        }
+        if (jc.contains("target")) {
+            float x, y, z;
+            if (read_vec3_array(jc["target"], x, y, z)) cfg.cam.target = { x, y, z };
+        }
+        if (jc.contains("up")) {
+            float x, y, z;
+            if (read_vec3_array(jc["up"], x, y, z)) cfg.cam.up = { x, y, z };
+        }
+        if (jc.contains("fovy") && jc["fovy"].is_number())
+            cfg.cam.fovy = jc["fovy"].get<float>();
+        if (jc.contains("projection") && jc["projection"].is_number_integer())
+            cfg.cam.projection = jc["projection"].get<int>();
+    }
+
+    // Light dir
+    if (j.contains("light_dir")) {
+        float x, y, z;
+        if (read_vec3_array(j["light_dir"], x, y, z)) cfg.light_dir = { x, y, z };
+    }
+
+    // World AABB
+    if (j.contains("world_aabb") && j["world_aabb"].is_object()) {
+        const auto& wa = j["world_aabb"];
+        if (wa.contains("min")) {
+            float x, y, z;
+            if (read_vec3_array(wa["min"], x, y, z)) cfg.world_aabb.min = { x, y, z };
+        }
+        if (wa.contains("max")) {
+            float x, y, z;
+            if (read_vec3_array(wa["max"], x, y, z)) cfg.world_aabb.max = { x, y, z };
+        }
+    }
+
+    return true;
+}
+
 
 static Mesh move_and_reupload_mesh(Mesh old_mesh, glm::vec3 translation, glm::quat rotation) {
     Mesh new_mesh = { 0 };

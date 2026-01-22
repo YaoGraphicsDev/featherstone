@@ -29,7 +29,7 @@ glm::mat3 m3(Matrix3f M) {
 
 void init_renderer() {
 	RigidWorldRenderer::Config renderer_config;
-	renderer_config.world_aabb = { glm::vec3(-15.0f, -1.0f, -15.0f), glm::vec3(15.0f, 20.0f, 15.0f) };
+	renderer_config.world_aabb = { glm::vec3(-10.0f, -5.0f, -10.0f), glm::vec3(10.0f, 8.0f, 10.0f) };
 	renderer_config.light_dir = { -0.5f, -1.0f, -0.4f };
 	renderer_config.cam.position = { 1.55943, 2.80221, 4.21298 };
 	renderer_config.cam.target = { 0.0f, 0.0f, 0.0f };
