@@ -1,0 +1,19 @@
+project(command_client)
+
+# Find all source files
+file(GLOB_RECURSE CLIENT_SOURCES 
+    "*.cpp"
+    "*.c"
+)
+
+file(GLOB_RECURSE CLIENT_HEADERS 
+    "*.hpp"
+    "*.h"
+)
+
+# Create library
+add_executable(command_client ${CLIENT_SOURCES} ${CLIENT_HEADERS})
+
+# Compiler features
+target_compile_features(command_client PUBLIC cxx_std_17)
+target_compile_options(command_client PRIVATE /bigobj)

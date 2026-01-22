@@ -43,6 +43,7 @@ add_subdirectory(third_party)
 add_subdirectory(featherstone)
 add_subdirectory(renderer)
 add_subdirectory(loader)
+add_subdirectory(command)
 # Define the shader path macro for C++
 set(SCENES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scenes/")
 add_subdirectory(demos)

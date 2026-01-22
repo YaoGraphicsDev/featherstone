@@ -13,6 +13,7 @@ target_include_directories(demo_common
         ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
         ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
         ${CMAKE_CURRENT_SOURCE_DIR}/../loader
+        ${CMAKE_CURRENT_SOURCE_DIR}/../command
         ${EIGEN3_INCLUDE_DIR}
         ${GLM_INCLUDE_DIR}
         ${RAYLIB_INCLUDE_DIR}
@@ -30,9 +31,9 @@ function(add_demo demo_name source_file)
             ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
             ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
             ${CMAKE_CURRENT_SOURCE_DIR}/../loader
+            ${CMAKE_CURRENT_SOURCE_DIR}/../command
             ${EIGEN3_INCLUDE_DIR}
             ${GLM_INCLUDE_DIR}
-            ${RAYLIB_INCLUDE_DIR} # raylib headers for demos
             ${BULLET_INCLUDE_DIR}
     )
 
