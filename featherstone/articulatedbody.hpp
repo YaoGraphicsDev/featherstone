@@ -70,6 +70,7 @@ struct ArticulatedBody {
 	enum class JointType {
 		Revolute = 0,
 		Prismatic,
+		Cylindrical,
 		Ball,
 		Free
 	};
@@ -88,6 +89,9 @@ struct ArticulatedBody {
 		const MSubspace* S; // motion subspace
 		const FSubspace* T; // constraint force subspace
 		const FSubspace* Ta; // active force subspace
+		MSubspace S_p; // parameterized motion subspace instance
+		FSubspace T_p; // parameterized constraint force subspace instance
+		FSubspace Ta_p; // parameterized active force subspace instance
 		MCoordinates q;
 		MCoordinates dq;
 		MCoordinates ddq;
@@ -107,7 +111,9 @@ struct ArticulatedBody {
 		size_t id0,
 		size_t id1,
 		Eigen::Matrix3f base0,
-		Eigen::Vector3f trans0);
+		Eigen::Vector3f trans0,
+		void* params = nullptr,/*additional parameters*/
+		bool disable_collision = true);
 
 	std::shared_ptr<Joint> add_joint(
 		std::string name,
@@ -115,7 +121,9 @@ struct ArticulatedBody {
 		std::shared_ptr<Body> b0,
 		std::shared_ptr<Body> b1,
 		Eigen::Matrix3f base0,
-		Eigen::Vector3f trans0);
+		Eigen::Vector3f trans0,
+		void* params = nullptr,/*additional parameters*/
+		bool disable_collision = true);
 
 	std::shared_ptr<Joint> get_joint(const std::string& name) const;
 
@@ -123,12 +131,18 @@ struct ArticulatedBody {
 	struct Constraint {
 		std::string name;
 		std::shared_ptr<Joint> j0;
+		int msubspace_col0;
 		std::shared_ptr<Joint> j1;
+		int msubspace_col1;
 		float r01; // motion ratio of joint 1 over joint 0
 		MCoordinates C; // set by build_tree()
 		bool disable_collision = true;
 	};
 	std::shared_ptr<Constraint> add_constraint(std::string name, std::shared_ptr<Joint> j0, std::shared_ptr<Joint> j1, float r01);
+
+	std::shared_ptr<Constraint> add_constraint(std::string name,
+		std::shared_ptr<Joint> j0, int msubspace_col0, // motion subspace column
+		std::shared_ptr<Joint> j1, int msubspace_col1, float r01);
 
 	bool build_tree();
 
@@ -174,11 +188,17 @@ struct ArticulatedBody {
 	const std::map<JointType, MSubspace> S = {
 		{JointType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
 		{JointType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
+		{JointType::Cylindrical, subspace({
+			{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})}
 	}; 
 	// joint active force subspace
 	const std::map<JointType, FSubspace> Ta = {
 		{JointType::Prismatic, subspace({{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
 		{JointType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
+		{JointType::Cylindrical, subspace({
+			{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})}
 	};
 	// joint constraint force subspace
 	const std::map<JointType, FSubspace> T = {
@@ -194,6 +214,11 @@ struct ArticulatedBody {
 			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
 			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f },
 			{ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f }})},
+		{JointType::Cylindrical, subspace({
+			{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }})}
 	};
 
 	Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> subspace(std::initializer_list<std::array<float, 6>> columns);
@@ -233,7 +258,7 @@ struct ArticulatedBody {
 
 	GPower K;
 	std::shared_ptr<BlockAccess> K_acc;
-	GPower K_reduced; // Z^T K Z
+	GPower K_reduced; // K Z, should not multiply Z^T with K as there will be a dimension mismatch if one of the loop joints has a 2d motion space
 
 	GPower _k;
 	std::shared_ptr<BlockAccess> k_acc;

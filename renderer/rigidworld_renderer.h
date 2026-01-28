@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 #include <map>
 #include <functional>
@@ -27,6 +28,7 @@ public:
 			{-15.0f, -15.0f, -15.0f },
 			{ 15.0f, 15.0f, 15.0f } 
 		};
+		std::string app_name = "app";
 	};
 
 	RigidWorldRenderer(Config config);
@@ -147,4 +149,6 @@ private:
 	
 	AABB _world_aabb;
 	OBB _light_obb;
+
+	std::string _config_json_name;
 };

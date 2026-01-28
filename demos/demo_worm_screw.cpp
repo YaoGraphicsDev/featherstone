@@ -8,9 +8,9 @@
 using namespace Eigen;
 using namespace SPD;
 
-int main() {
+int main(int argc, char** argv) {
 	Scene scene;
-	if (!load_gltf(std::string(SCENES_DIR) + "articulated/gear.gltf", scene, GLTFParseOption::BlenderExport)) {
+	if (!load_gltf(std::string(SCENES_DIR) + "articulated/worm_screw_jack.gltf", scene, GLTFParseOption::BlenderExport)) {
 		std::cout << "error loading gltf resource" << std::endl;
 		return 0;
 	}
@@ -31,26 +31,18 @@ int main() {
 	std::shared_ptr<ArticulatedBody> artbody = create_articulated_body(scene.graph, scene.art_groups[0], scene.art_forest[0]);
 
 	// configure constraints manually. Havent yet found a way to store this in a .gltf
-	std::shared_ptr<ArticulatedBody::Joint> drive = artbody->get_joint("driving_revolute");
-	std::shared_ptr<ArticulatedBody::Joint> rack = artbody->get_joint("rack_prismatic");
-	std::shared_ptr<ArticulatedBody::Joint> follow = artbody->get_joint("following_revolute");
-	if (!drive) {
-		std::cout << "Cannot find driving revolute joint" << std::endl;
-		assert(false);
-		return 0;
-	}
-	if (!rack) {
-		std::cout << "Cannot find rack prismatic joint" << std::endl;
-		assert(false);
-		return 0;
-	}
-	if (!follow) {
-		std::cout << "Cannot find following revolute joint" << std::endl;
-		assert(false);
-		return 0;
-	}
-	artbody->add_constraint("drive_rack", drive, rack, 1.0f / 1.5f);
-	artbody->add_constraint("rack_follow", rack, follow, 3.6f);
+	std::shared_ptr<ArticulatedBody::Joint> base_rev_left = artbody->get_joint("base_rev_left");
+	std::shared_ptr<ArticulatedBody::Joint> base_rev_right = artbody->get_joint("base_rev_right");
+	std::shared_ptr<ArticulatedBody::Joint> push_rev_left = artbody->get_joint("push_rev_left");
+	std::shared_ptr<ArticulatedBody::Joint> push_rev_right = artbody->get_joint("push_rev_right");
+	std::shared_ptr<ArticulatedBody::Joint> screw = artbody->get_joint("screw");
+	std::shared_ptr<ArticulatedBody::Joint> worm_screw = artbody->get_joint("worm_screw");
+	artbody->add_constraint("base_gear", base_rev_left, base_rev_right, 1.0f);
+	artbody->add_constraint("push_gear", push_rev_left, push_rev_right, -1.0f);
+	artbody->add_constraint("screw", screw, 0, screw, 1, 2.0f);
+	artbody->add_constraint("worm", worm_screw, 0, worm_screw, 1, 30.0f);
+	artbody->add_constraint("worm_linear", worm_screw, 1, screw, 0, 0.8f);
+
 	g_world->add_body(artbody);
 
 	// add rigid bodies
@@ -60,13 +52,17 @@ int main() {
 		g_world->add_body(rigidbodies.back());
 	}
 
-	// PD control parameters
-	float kp = -60.0f;
-	float kd = -40.0f;
-
 	// start up command server
 	CommandServerWin server(7777);
 	server.start();
+
+	// PI control parameters
+	float kp = 0.2f;
+	float ki = 1.5f;
+	float dq_target = 0.0f;
+
+	bool pi_online = true;
+
 
 	auto command_handler = [&](std::optional<std::string> line) {
 		if (!line.has_value()) {
@@ -104,48 +100,61 @@ int main() {
 		else if (cmd == "apply_tau") {
 			iss >> param;
 			if (auto joint = artbody->get_joint(param)) {
-				iss >> value;
-				assert(joint->taue.rows() == 1);
-				joint->taue(0) = value;
-				server.send_reply("tau applies to " + joint->name + ", value = " + std::to_string(value));
+				for (int i = 0; i < joint->taue.size(); ++i) {
+					if (iss >> value) {
+						joint->taue(i) = value;
+					}
+				}
+				std::ostringstream oss;
+				oss << joint->taue.transpose();
+				server.send_reply("tau applies to " + joint->name + ", value = " + oss.str());
 			}
 			else {
 				server.send_reply("Cannot find joint [" + param + "]");
 			}
 		}
-		else if (cmd == "pd") {
-			iss >> param;
-			if (param == "set") {
-				iss >> kp;
-				iss >> kd;
-				server.send_reply("PD parameters: kp = " + std::to_string(kp) + ", kd = " + std::to_string(kd));
-			}
-			else if (param == "get") {
-				server.send_reply("PD parameters: kp = " + std::to_string(kp) + ", kd = " + std::to_string(kd));
+		else if (cmd == "worm_screw_target") {
+			iss >> dq_target;
+			std::ostringstream oss;
+			oss << dq_target;
+			server.send_reply("worm screw target = " + oss.str());
+		}
+		else if (cmd == "worm_screw_get") {
+			server.send_reply("worm screw tau = " + std::to_string(worm_screw->taue(0)) + ", dq = " + std::to_string(worm_screw->dq(0)));
+		}
+		else if (cmd == "pid_toggle") {
+			pi_online = !pi_online;
+			if (pi_online) {
+				server.send_reply("PID online");
 			}
 			else {
-				server.send_reply("invalid PD control command parameter [" + param + "]");
+				server.send_reply("PID offline");
 			}
+
 		}
 		else {
 			server.send_reply("invalid command");
 		}
 	};
 
-	MCoordinates error = MCoordinates::Zero(1, 1);
-	float ki = 30.0f;
+	float I = 0.0f;
+	float e = 0.0f;
+	float tau = 0.0f;
+	float error = 0.0f;
+
 	auto update_world = [&](float frame_dt, size_t frame_id) {
 		// parse command line
 		auto cmd_line = server.try_pop_command();
 		command_handler(cmd_line);
 
-		// PD control
-		error += -artbody->get_joint("measure")->q / 60.0f;
-		artbody->get_joint("driving_revolute")->taue = kp * artbody->get_joint("measure")->q
-			+ kd * artbody->get_joint("measure")->dq
-			+ ki * error; // TODO: possible explosion
+		if (pi_online) {
+			error = dq_target - worm_screw->dq(0);
+			I += error / 60.0f; // may explode if stalls
 
-		g_world->step(0.01667f);
+			worm_screw->taue(0) = kp * error + ki * I;
+		}
+
+		g_world->step(0.016667f);
 
 		// update all rigid bodies
 		for (int i = 0; i < scene.rigidbody_group.size(); ++i) {

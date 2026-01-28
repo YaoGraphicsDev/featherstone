@@ -341,7 +341,7 @@ void RigidWorld::AdjacentLinkFilter::add_body(std::shared_ptr<ArticulatedBody> a
 	}
 	for (auto constraint : artbody->constraints) {
 		if (constraint->disable_collision) {
-			am[constraint->j0->b1->id].insert(constraint->j1->b1->id);
+			am[constraint->j0->b1->id].insert(constraint->j1->b1->id); // TODO: arbitrary constrained joints polarity
 			am[constraint->j1->b1->id].insert(constraint->j0->b1->id);
 		}
 	}

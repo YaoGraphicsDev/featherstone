@@ -112,12 +112,19 @@ struct RigidBCPPosition : public BodyContactPointPosition  {
 };
 
 struct ArticulatedBCPPosition : public BodyContactPointPosition {
-	// pc in body local orthogonal space
+	// pc in world space
 	ArticulatedBCPPosition(std::shared_ptr<BodyWrapper> b, const Eigen::Vector3f& pc);
 
 	virtual InvDyad inv_Ic() override { return _inv_Ic; };
 
 	virtual void apply_positional_impulse(const FVector& imp_c) override;
+
+	struct LoopClosureDisplacement {
+		Eigen::AngleAxisf ang_axis;
+		Eigen::Vector3f linear;
+	};
+	// from predecessor to successor
+	static LoopClosureDisplacement loop_closure_displacement_ps(std::shared_ptr<ArticulatedBody> ab, int loop_joint_id);
 
 	std::shared_ptr<ArticulatedBodyWrapper> bw = nullptr;
 	JDyad inv_Ig; // generalized inverse inertia, H^-1 J^T -- projection from contact impulse to joint space velocity change

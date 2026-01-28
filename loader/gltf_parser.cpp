@@ -578,12 +578,9 @@ static bool collect_articulation_links(const tg::Node& node, int this_id) {
 			}
 			link.name = model.nodes[prop_id].name;
 
-			int joint_type = (int)extension_property(child, KHR_physics_rigid_bodies)["joint"]["joint"];
-			assert(joint_type < g_joints.size());
-			link.joint = g_joints[joint_type];
-
-			//const int linear_x_free = 0b000100;
-			//const int ang_y_free = 0b010000;
+			int joint_id = (int)extension_property(child, KHR_physics_rigid_bodies)["joint"]["joint"];
+			assert(joint_id < g_joints.size());
+			link.joint = g_joints[joint_id];
 
 			if (link.joint.type == ArticulationLinkage::Joint::Revolute) {
 				Matrix3f yz_correction;
@@ -593,7 +590,8 @@ static bool collect_articulation_links(const tg::Node& node, int this_id) {
 					0, 1, 0;
 				link.bodyA_rotation = rotation * Quaternionf(yz_correction);
 			}
-			else if (link.joint.type == ArticulationLinkage::Joint::Prismatic) {
+			else if (link.joint.type == ArticulationLinkage::Joint::Prismatic || 
+				link.joint.type == ArticulationLinkage::Joint::Cylindrical) {
 				Matrix3f xz_correction;
 				xz_correction <<
 					0, 0, -1,
@@ -602,9 +600,16 @@ static bool collect_articulation_links(const tg::Node& node, int this_id) {
 				link.bodyA_rotation = rotation * Quaternionf(xz_correction);
 			}
 			else {
-				std::cout << "joint type not supported. joint_type = " << joint_type << ", id = " << c_id << std::endl;
-				return false;
+				std::cout << "joint type not supported. joint_id = " << joint_id << ", id = " << c_id << std::endl;
 				assert(false);
+				return false;
+			}
+			
+			if (extension_property(child, KHR_physics_rigid_bodies)["joint"].contains("enableCollision")) {
+				link.enable_collision = (bool)extension_property(child, KHR_physics_rigid_bodies)["joint"]["enableCollision"];
+			}
+			else {
+				link.enable_collision = false;
 			}
 		}
 		if (g_phy_labels[c_id] == NodePhysicsLabel::JointSpaceB) {
@@ -889,6 +894,7 @@ static bool load_all_physics_joints(nlohmann::json& ext) {
 
 		ArticulationLinkage::Joint phy_joint;
 		// blender convention
+		const int ang_x_free = 0b100000;
 		const int linear_x_free = 0b000100;
 		const int ang_y_free = 0b010000;
 		if (dof_flags == linear_x_free) {
@@ -897,8 +903,12 @@ static bool load_all_physics_joints(nlohmann::json& ext) {
 		else if (dof_flags == ang_y_free) {
 			phy_joint.type = ArticulationLinkage::Joint::Revolute;
 		}
+		else if (dof_flags == (ang_x_free | linear_x_free)) {
+			phy_joint.type = ArticulationLinkage::Joint::Cylindrical;
+		}
 		else {
 			std::cout << "invalid dof flag = " << dof_flags << ", physicsJoints[" << i << "]" << std::endl;
+			assert(false);
 			return false;
 		}
 		phy_joint.dof_limits = dof_limits;

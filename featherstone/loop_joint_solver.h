@@ -31,7 +31,11 @@ struct LoopJointSolver {
 		std::shared_ptr<ArticulatedBodyWrapper> bws;
 		Eigen::Vector3f local_pp;
 		Eigen::Vector3f local_ps;
-		F3Subspace T_linear_ortho;
+		//F3Subspace T_linear_ortho;
+
+		// std::shared_ptr<ArticulatedBody> ab;
+		int loop_joint_id;
+		FSubspace T_ortho; // joint force space, in orthogonal joint space
 	};
 
 	std::vector<PositionConstraint> pcs;

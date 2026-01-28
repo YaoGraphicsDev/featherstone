@@ -61,6 +61,8 @@ void UnloadShadowmapRenderTexture(RenderTexture2D target)
 }
 
 RigidWorldRenderer::RigidWorldRenderer(Config config) {
+    _config_json_name = config.app_name + "_renderer_config.json";
+
     Config saved_config;
     if (load_config_json(saved_config)) {
         // if saved config exists, overwrite config parameter
@@ -101,7 +103,7 @@ RigidWorldRenderer::~RigidWorldRenderer() {
 }
 
 void RigidWorldRenderer::save_config_json() {
-    std::string filename = "./rigidworld_renderer_config.json";
+    // std::string filename = "./rigidworld_renderer_config.json";
 
     auto v3_to_json = [](float x, float y, float z) {
         return nlohmann::json::array({ x, y, z });
@@ -138,16 +140,16 @@ void RigidWorldRenderer::save_config_json() {
         {"max", v3_to_json(_world_aabb.max.x, _world_aabb.max.y, _world_aabb.max.z)}
     };
 
-    std::ofstream os(filename, std::ios::out | std::ios::trunc);
+    std::ofstream os(_config_json_name, std::ios::out | std::ios::trunc);
     if (!os.is_open()) {
-        std::cout << "renderer failed to open " << filename << " for writing" << std::endl;
+        std::cout << "renderer failed to open " << _config_json_name << " for writing" << std::endl;
         return;
     }
-    os << j.dump(4);
+    os << j.dump(4) << std::endl;
 }
 
 bool RigidWorldRenderer::load_config_json(Config& cfg) {
-    std::string filename = "./rigidworld_renderer_config.json";
+    // std::string filename = "./rigidworld_renderer_config.json";
 
     // Helpers
     auto read_vec3_array = [](const nlohmann::json& a, float& x, float& y, float& z) -> bool {
@@ -159,7 +161,7 @@ bool RigidWorldRenderer::load_config_json(Config& cfg) {
         return true;
     };
 
-    std::ifstream is(filename);
+    std::ifstream is(_config_json_name);
     if (!is.is_open()) {
         return false; // No saved config is not an error
     }

@@ -7,7 +7,7 @@ using namespace SPD;
 
 int main() {
 	Scene scene;
-	if (!load_gltf(std::string(SCENES_DIR) + "articulated/scissorlift.gltf", scene, GLTFParseOption::BlenderExport)) {
+	if (!load_gltf(std::string(SCENES_DIR) + "wrecking_ball/wrecking_ball.gltf", scene, GLTFParseOption::BlenderExport)) {
 		std::cout << "error loading gltf resource" << std::endl;
 		return 0;
 	}

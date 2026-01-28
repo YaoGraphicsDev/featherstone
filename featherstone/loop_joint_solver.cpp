@@ -23,6 +23,8 @@ void LoopJointSolver::initialize(const std::vector<std::shared_ptr<ArticulatedBo
 			VelocityConstraint vc;
 			vc.bpp = std::make_shared<ArticulatedBCPVelocity>(bwp, pb->bases * lj->bt0 + pb->translation);
 			vc.bps = std::make_shared<ArticulatedBCPVelocity>(bws, sb->bases * lj->bt1 + sb->translation);
+
+
 			MTransform XM_ortho_joint = m_transform(Matrix3f::Identity(), pb->bases * lj->bb0, Vector3f::Zero());
 			FTransform XF_joint_ortho = transpose_transform(XM_ortho_joint);
 			vc.T_ortho = XF_joint_ortho * *lj->T;
@@ -38,20 +40,9 @@ void LoopJointSolver::initialize(const std::vector<std::shared_ptr<ArticulatedBo
 			pc.bws = bws;
 			pc.local_pp = lj->bt0;
 			pc.local_ps = lj->bt1;
-			if (lj->type == ArticulatedBody::JointType::Prismatic) {
-				F3Subspace T_linear_joint(3, 2);
-				T_linear_joint <<
-					1, 0,
-					0, 1,
-					0, 0;
-				pc.T_linear_ortho = XF_joint_ortho.bottomRightCorner(3, 3) * T_linear_joint;
-			}
-			else if (lj->type == ArticulatedBody::JointType::Revolute) {
-				pc.T_linear_ortho = XF_joint_ortho.bottomRightCorner(3, 3);
-			}
-			else {
-				assert(false);
-			}
+			pc.loop_joint_id = i;
+			pc.T_ortho = vc.T_ortho;
+
 			pcs.push_back(pc);
 		}
 	}
@@ -84,6 +75,52 @@ void LoopJointSolver::solve_velocity() {
 
 void LoopJointSolver::solve_position() {
 	for (PositionConstraint& pc : pcs) {
+		assert(pc.bwp->ab.get() == pc.bws->ab.get());
+		ArticulatedBCPPosition::LoopClosureDisplacement displacement =
+			ArticulatedBCPPosition::loop_closure_displacement_ps(pc.bwp->ab, pc.loop_joint_id);
+		
+		// Prevent large corrections and allow slop.
+		const float baumgarte = 0.2f;
+		const float slop = 0.001f;
+		const float slop2 = 0.000001f;
+		const float max_correction = 0.4f;
+
+		bool need_correction = false;
+
+		// rotational error
+		Vector3f rot_err = Vector3f::Zero();
+		float angle = displacement.ang_axis.angle();
+		if (std::abs(angle) > slop) {
+			need_correction |= true;
+			if (angle < 0.0f) {
+				angle = std::clamp(baumgarte * (angle + slop), -max_correction, 0.0f);
+			}
+			else {
+				angle = std::clamp(baumgarte * (angle - slop), 0.0f, max_correction);
+			}
+			rot_err = displacement.ang_axis.axis() * angle;
+		}
+
+		// linear error
+		Vector3f linear_err = Vector3f::Zero();
+		// Vector3f linear_err = displacement.linear;
+		float linear_err_norm = displacement.linear.norm();
+		if (linear_err_norm > slop) {
+			need_correction |= true;
+			Vector3f linear_err_unit = displacement.linear / linear_err_norm;
+			linear_err_norm = std::clamp(baumgarte * (linear_err_norm - slop), 0.0f, max_correction);
+			linear_err = linear_err_unit * linear_err_norm;
+		}
+
+		if (!need_correction) {
+			continue;
+		}
+
+		MVector err6;
+		err6 << rot_err, linear_err; // 6x1
+
+		Unitless err_proj = pc.T_ortho.transpose() * err6; // nx1
+
 		Vector3f pp = pc.bwp->p_world(pc.local_pp);
 		Vector3f ps = pc.bws->p_world(pc.local_ps);
 		Vector3f p = (pp + ps) * 0.5f;
@@ -91,45 +128,16 @@ void LoopJointSolver::solve_position() {
 		std::shared_ptr<ArticulatedBCPPosition> bpp = std::make_shared<ArticulatedBCPPosition>(pc.bwp, p);
 		std::shared_ptr<ArticulatedBCPPosition> bps = std::make_shared<ArticulatedBCPPosition>(pc.bws, p);
 
-		Unitless displacement = pc.T_linear_ortho.transpose() * (ps - pp); // nx1
-		// Prevent large corrections and allow slop.
-		const float baumgarte = 0.3f;
-		const float slop = 0.001f;
-		const float max_correction = 0.5f;
-
-		bool need_correction = false;
-		for (int i = 0; i < displacement.rows(); ++i) {
-			float& d = displacement(i, 0);
-			if (std::abs(d) > slop) {
-				need_correction = true;
-				break;
-			}
-		}
-		if (!need_correction) {
-			continue;
-		}
-
-		for (int i = 0; i < displacement.rows(); ++i) {
-			float& d = displacement(i, 0);
-			if (d < 0.0f) {
-				d = std::clamp(baumgarte * (d + slop), -max_correction, 0.0f);
-			}
-			else {
-				d = std::clamp(baumgarte * (d - slop), 0.0f, max_correction);
-			}
-		}
-
 		InvDyad inv_Ip = bpp->inv_Ic();
 		InvDyad inv_Is = bps->inv_Ic();
 
 		// TODO: is it necessary to check singularity of effective mass? see positional contact solve for reasoning
 		// positional impulse
-		JDyad eff_mass = pc.T_linear_ortho.transpose() * (inv_Ip.bottomRightCorner(3, 3) + inv_Is.bottomRightCorner(3, 3)) * pc.T_linear_ortho;
-		InvOrPinvSolver eff_mass_solve(eff_mass);
-		FCoordinates lambda = -eff_mass_solve.solve(displacement);
+		JDyad eff_mass = pc.T_ortho.transpose() * (inv_Ip + inv_Is) * pc.T_ortho; // nxn
+ 		InvOrPinvSolver eff_mass_solve(eff_mass);
+		FCoordinates lambda = -eff_mass_solve.solve(err_proj); // nx1
 
-		FVector imp_ps = FVector::Zero(6, 1);
-		imp_ps.tail(3) = pc.T_linear_ortho * lambda; // impulse pointing from predecessor to successor
+		FVector imp_ps = pc.T_ortho * lambda; // 6x1, impulse pointing from predecessor to successor
 
 		bpp->apply_positional_impulse(-imp_ps);
 		bps->apply_positional_impulse(imp_ps);

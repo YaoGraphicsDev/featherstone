@@ -27,3 +27,4 @@ std::shared_ptr<SPD::Shape> create_compound_shape_from_collider(const std::vecto
 std::shared_ptr<SPD::RigidBody> create_rigidbody_from_node(const SceneNode& node);
 
 std::shared_ptr<SPD::ArticulatedBody> create_articulated_body(const SceneGraph& graph, const NodeGroup& art_group, const ArticulationTree& art_tree);
+

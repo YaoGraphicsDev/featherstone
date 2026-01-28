@@ -33,6 +33,7 @@ void init_renderer() {
 	renderer_config.light_dir = { -0.5f, -1.0f, -0.4f };
 	renderer_config.cam.position = { 1.55943, 2.80221, 4.21298 };
 	renderer_config.cam.target = { 0.0f, 0.0f, 0.0f };
+	renderer_config.app_name = std::string(DEMO_NAME);
 	g_renderer = std::make_shared<RigidWorldRenderer>(renderer_config);
 }
 
@@ -219,7 +220,7 @@ std::shared_ptr<ArticulatedBody> create_articulated_body(const SceneGraph& graph
 			link.bodyA_id,
 			link.bodyB_id,
 			link.bodyA_rotation.toRotationMatrix(),
-			link.bodyA_translation);
+			link.bodyA_translation, nullptr, !link.enable_collision);
 	}
 
 	return art;

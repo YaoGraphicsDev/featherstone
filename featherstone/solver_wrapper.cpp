@@ -162,4 +162,38 @@ void ArticulatedBCPPosition::apply_positional_impulse(const FVector& imp_c) {
 	}
 }
 
+ArticulatedBCPPosition::LoopClosureDisplacement ArticulatedBCPPosition::loop_closure_displacement_ps(std::shared_ptr<ArticulatedBody> ab, int loop_joint_id) {
+	std::shared_ptr<ArticulatedBody::Joint> loop_joint = ab->loop_joints[loop_joint_id];
+	
+	// vc.bpp = std::make_shared<ArticulatedBCPVelocity>(bwp, pb->bases * lj->bt0 + pb->translation);
+
+	Matrix3f Ep = loop_joint->b0->bases * loop_joint->bb0;
+	Vector3f rp = loop_joint->b0->bases * loop_joint->bt0 + loop_joint->b0->translation;
+
+	Matrix3f Es = loop_joint->b1->bases * loop_joint->bb1;
+	Vector3f rs = loop_joint->b1->bases * loop_joint->bt1 + loop_joint->b1->translation;
+
+	//// loop joint on predecessor 
+	//MTransform Xp = ab->XP[loop_joint_id] * ab->X_0_[loop_joint->b0->id] * ab->X_w_0;
+	//Matrix3f Ep = 0.5f * (Xp.topLeftCorner<3, 3>() + Xp.bottomRightCorner<3, 3>()); // mitigate numerical error
+	//Matrix3f rp_cross = -Ep.transpose() * Xp.bottomLeftCorner<3, 3>();
+	//Vector3f rp = from_cross_mat(rp_cross);
+
+	//// loop joint on successor
+	//MTransform Xs = ab->XS[loop_joint_id] * ab->X_0_[loop_joint->b1->id] * ab->X_w_0;
+	//Matrix3f Es = 0.5f * (Xs.topLeftCorner<3, 3>() + Xs.bottomRightCorner<3, 3>());
+	//Matrix3f rs_cross = -Es.transpose() * Xs.bottomLeftCorner<3, 3>();
+	//Vector3f rs = from_cross_mat(rs_cross);
+
+	LoopClosureDisplacement disp;
+	// rotational error
+	// Matrix3f Eerr = Ep.transpose() * Es;
+	Matrix3f Eerr = Es * Ep.transpose();
+	disp.ang_axis = Eigen::AngleAxisf(Eerr);
+	// linear error
+	disp.linear = rs - rp;
+
+	return disp;
+}
+
 }

@@ -75,6 +75,7 @@ struct ArticulationLinkage {
         enum Type {
             Revolute = 0,
             Prismatic,
+            Cylindrical,
         };
         Type type;
         struct Limit {
@@ -91,6 +92,7 @@ struct ArticulationLinkage {
     int bodyB_id = -1;
     Eigen::Vector3f bodyA_translation = Eigen::Vector3f::Zero();
     Eigen::Quaternionf bodyA_rotation = Eigen::Quaternionf::Identity();
+    bool enable_collision = false;
 };
 
 typedef std::vector<int> NodeGroup;

@@ -33,6 +33,13 @@ inline Eigen::Matrix3f cross_mat(const Eigen::Vector3f& r) {
 	return M;
 }
 
+inline Eigen::Vector3f from_cross_mat(const Eigen::Matrix3f& mat) {
+	float x = (mat(2, 1) - mat(1, 2)) * 0.5f;
+	float y = (mat(0, 2) - mat(2, 0)) * 0.5f;
+	float z = (mat(1, 0) - mat(0, 1)) * 0.5f;
+	return { x, y, z };
+}
+
 inline Matrix6<6> Mat66(
 	const Eigen::Matrix3f& m00, const Eigen::Matrix3f& m01,
 	const Eigen::Matrix3f& m10, const Eigen::Matrix3f& m11)

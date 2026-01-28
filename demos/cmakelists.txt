@@ -1,34 +1,34 @@
 # Demos directory
 
 # ---- Common code shared by all demos ----
-add_library(demo_common STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/common/demo_common.cpp
-)
+#add_library(demo_common STATIC
+#    ${CMAKE_CURRENT_SOURCE_DIR}/common/demo_common.cpp
+#)
 
 # demo_common should see its own headers + everything demos see
-target_include_directories(demo_common
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/common
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
-        ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
-        ${CMAKE_CURRENT_SOURCE_DIR}/../loader
-        ${CMAKE_CURRENT_SOURCE_DIR}/../command
-        ${EIGEN3_INCLUDE_DIR}
-        ${GLM_INCLUDE_DIR}
-        ${RAYLIB_INCLUDE_DIR}
-        ${BULLET_INCLUDE_DIR}
-        ${NLOHMANN_JSON_INCLUDE_DIR}
-)
+#target_include_directories(demo_common
+#    PUBLIC
+#       ${CMAKE_CURRENT_SOURCE_DIR}/common
+#    PRIVATE
+#        ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
+#        ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
+#        ${CMAKE_CURRENT_SOURCE_DIR}/../loader
+#        ${CMAKE_CURRENT_SOURCE_DIR}/../command
+#        ${EIGEN3_INCLUDE_DIR}
+#        ${GLM_INCLUDE_DIR}
+#        ${RAYLIB_INCLUDE_DIR}
+#        ${BULLET_INCLUDE_DIR}
+#        ${NLOHMANN_JSON_INCLUDE_DIR}
+#)
 
 # Function to create a demo executable
 function(add_demo demo_name source_file)
     # Create executable
-    add_executable(${demo_name} ${source_file})
-
+    add_executable(${demo_name} ${source_file}  ${CMAKE_CURRENT_SOURCE_DIR}/common/demo_common.cpp)
     # Include directories from libraries AND dependencies
     target_include_directories(${demo_name}
         PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/common
             ${CMAKE_CURRENT_SOURCE_DIR}/../featherstone
             ${CMAKE_CURRENT_SOURCE_DIR}/../renderer
             ${CMAKE_CURRENT_SOURCE_DIR}/../loader
@@ -43,7 +43,7 @@ function(add_demo demo_name source_file)
     # Link against our libraries AND raylib + demo_common
     target_link_libraries(${demo_name}
         PRIVATE
-            demo_common
+            #demo_common
             featherstone
             renderer
             loader
@@ -62,6 +62,7 @@ function(add_demo demo_name source_file)
     target_compile_definitions(${demo_name}
         PRIVATE
             SCENES_DIR="${SCENES_DIR}"
+            DEMO_NAME="${demo_name}"
     )
 endfunction()
 

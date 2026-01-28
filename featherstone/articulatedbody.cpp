@@ -27,6 +27,12 @@ void ArticulatedBody::move_joints() {
 				Eigen::Matrix3f::Identity(),
 				Eigen::Vector3f::UnitZ() * j->q[0]);
 		}
+		else if (j->type == JointType::Cylindrical) {
+			j->X_J0_J1 = m_transform(
+				Eigen::Matrix3f::Identity(),
+				Eigen::AngleAxisf(j->q[0], Eigen::Vector3f::UnitZ()).toRotationMatrix(),
+				Eigen::Vector3f::UnitZ() * j->q[1]);
+		}
 		else {
 			assert(false);
 		}
@@ -86,9 +92,9 @@ void ArticulatedBody::solve_ddq() {
 		}
 		else {
 			Unitless KHi = K_reduced * H_reduced.inverse();
-			Unitless A = KHi * (K * Z).transpose(); // TODO: K * Z being redundant
+			Unitless A = KHi * K_reduced.transpose(); // TODO: K * Z being redundant
 			Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
-			Unitless b = ZT * _k - KHi * (ZT * (tau - C)); // TODO: tau - C computed multiple times. Duplicated
+			Unitless b = /*ZT **/ _k - KHi * (ZT * (tau - C)); // TODO: tau - C computed multiple times. Duplicated
 			// InvOrPinvSolver inv_A_solve(A);
 			// lambda = inv_A_solve.solve(b);
 			lambda = inv_A * b;
@@ -210,8 +216,10 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 	size_t id0,
 	size_t id1,
 	Eigen::Matrix3f base0,
-	Eigen::Vector3f trans0) {
-	return add_joint(name, type, bodies[id0], bodies[id1], base0, trans0);
+	Eigen::Vector3f trans0,
+	void* params,
+	bool disable_collision) {
+	return add_joint(name, type, bodies[id0], bodies[id1], base0, trans0, params, disable_collision);
 }
 
 std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
@@ -220,7 +228,9 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 	std::shared_ptr<Body> b0,
 	std::shared_ptr<Body> b1,
 	Eigen::Matrix3f base0,
-	Eigen::Vector3f trans0) {
+	Eigen::Vector3f trans0,
+	void* params,
+	bool disable_collision) {
 
 	assert(b0 && b1);
 	std::shared_ptr<Joint> c = std::make_shared<Joint>();
@@ -237,35 +247,47 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 	c->X_0_J0 = m_transform(Eigen::Matrix3f::Identity(), c->bb0, c->bt0);
 	c->X_1_J1 = m_transform(Eigen::Matrix3f::Identity(), c->bb1, c->bt1);
 	c->X_J0_J1 = MTransform::Identity();
-	c->S = &S.at(type);
-	c->T = &T.at(type);
-	c->Ta = &Ta.at(type);
-	if (type == JointType::Revolute) {
-		c->q.resize(1, 1);
-		c->q << 0.0f;
-		c->dq.resize(1, 1);
-		c->dq << 0.0f;
-		c->ddq.resize(1, 1);
-		c->ddq << 0.0f;
-		c->bias.resize(1, 1);
-		c->bias << 0.0f;
-		c->taue.resize(1, 1);
-		c->taue << 0.0f;
-	} else if(type == JointType::Prismatic) {
-		c->q.resize(1, 1);
-		c->q << 0.0f;
-		c->dq.resize(1, 1);
-		c->dq << 0.0f;
-		c->ddq.resize(1, 1);
-		c->ddq << 0.0f;
-		c->bias.resize(1, 1);
-		c->bias << 0.0f;
-		c->taue.resize(1, 1);
-		c->taue << 0.0f;
+	if (type == JointType::Revolute ||
+		type == JointType::Prismatic ||
+		type == JointType::Cylindrical) {
+		c->S = &S.at(type);
+		c->T = &T.at(type);
+		c->Ta = &Ta.at(type);
 	}
 	else {
 		assert(false);
 	}
+
+
+	if (type == JointType::Revolute ||
+		type == JointType::Prismatic) {
+		c->q.resize(1, 1);
+		c->q << 0.0f;
+		c->dq.resize(1, 1);
+		c->dq << 0.0f;
+		c->ddq.resize(1, 1);
+		c->ddq << 0.0f;
+		c->bias.resize(1, 1);
+		c->bias << 0.0f;
+		c->taue.resize(1, 1);
+		c->taue << 0.0f;
+	}
+	else if (type == JointType::Cylindrical) {
+		c->q.resize(2, 1);
+		c->q << 0.0f, 0.0f;
+		c->dq.resize(2, 1);
+		c->dq << 0.0f, 0.0f;
+		c->ddq.resize(2, 1);
+		c->ddq << 0.0f, 0.0f;
+		c->bias.resize(2, 1);
+		c->bias << 0.0f, 0.0f;
+		c->taue.resize(2, 1);
+		c->taue << 0.0f, 0.0f;
+	}
+	else {
+		assert(false);
+	}
+	c->disable_collision = disable_collision;
 	tree_joints.push_back(c);
 
 	b0->children_joints.push_back(c);
@@ -307,7 +329,29 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(std
 	std::shared_ptr<Constraint> c = std::make_shared<Constraint>();
 	c->name = name;
 	c->j0 = j0;
+	c->msubspace_col0 = 0;
 	c->j1 = j1;
+	c->msubspace_col1 = 0;
+	c->r01 = r01;
+
+	constraints.push_back(c);
+	return c;
+}
+
+std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(std::string name,
+	std::shared_ptr<Joint> j0, int msubspace_col0,
+	std::shared_ptr<Joint> j1, int msubspace_col1, float r01) {
+	if (j0->S->cols() <= msubspace_col0 || j1->S->cols() <= msubspace_col1) {
+		assert(false);
+		return nullptr;
+	}
+
+	std::shared_ptr<Constraint> c = std::make_shared<Constraint>();
+	c->name = name;
+	c->j0 = j0;
+	c->msubspace_col0 = msubspace_col0;
+	c->j1 = j1;
+	c->msubspace_col1 = msubspace_col1;
 	c->r01 = r01;
 
 	constraints.push_back(c);
@@ -459,8 +503,8 @@ bool ArticulatedBody::build_tree() {
 		int j0_id = c->j0->id;
 		int j1_id = c->j1->id;
 		assert(j0_id > 0 && j1_id > 0); // constrained joints cannot be loop joints
-		c->C(H_acc->blocks[j0_id - 1][j0_id - 1].start_col) = 1.0f;
-		c->C(H_acc->blocks[j1_id - 1][j1_id - 1].start_col) = c->r01;
+		c->C(H_acc->blocks[j0_id - 1][j0_id - 1].start_col + c->msubspace_col0) = 1.0f;
+		c->C(H_acc->blocks[j1_id - 1][j1_id - 1].start_col + c->msubspace_col1) = c->r01;
 	}
 
 	if (!constraints.empty()) {
@@ -489,7 +533,7 @@ void ArticulatedBody::project_position() {
 
 		Eigen::Matrix3f joint_bases0_world = pb->bases * pj->bb0;
 		Eigen::Matrix3f joint_bases1_world = joint_bases0_world;
-		if (pj->type == JointType::Revolute) {
+		if (pj->type == JointType::Revolute || pj->type == JointType::Cylindrical) {
 			joint_bases1_world = Eigen::AngleAxisf(pj->q(0, 0), joint_bases0_world.col(2)).toRotationMatrix() * joint_bases0_world;
 		}
 		else if (pj->type == JointType::Prismatic) {
@@ -506,6 +550,9 @@ void ArticulatedBody::project_position() {
 		}
 		else if (pj->type == JointType::Prismatic) {
 			joint_translation1_world = joint_bases0_world.col(2) * pj->q(0, 0) + joint_translation0_world;
+		}
+		else if (pj->type == JointType::Cylindrical) {
+			joint_translation1_world = joint_bases0_world.col(2) * pj->q(1, 0) + joint_translation0_world;
 		}
 		else {
 			assert(false);
@@ -683,7 +730,7 @@ void ArticulatedBody::compute_H() {
 		}
 
 		const MSubspace& Si = *tree_joints[i]->S;
-		FVector F = Ic[i] * Si;
+		Unitless F = Ic[i] * Si;
 		H_acc->block(H, i - 1, i - 1) = Si.transpose() * F;
 		int j = i;
 		while (lambda[j] != 0) {
@@ -720,6 +767,13 @@ GPower ArticulatedBody::compute_delta(JointType type, const MTransform& X) {
 			X(4, 2),
 			-X(3, 2),
 			X(3, 0) * X(1, 0) + X(3, 1) * X(1, 1);
+	}
+	else if (type == JointType::Cylindrical) {
+		delta <<
+			X(1, 2),
+			-X(0, 2),
+			X(4, 2),
+			-X(3, 2);
 	}
 	else {
 		assert(false);
@@ -761,7 +815,8 @@ void ArticulatedBody::compute_K_k() {
 	}
 
 	if (!constraints.empty()) {
-		K_reduced = ZT * K * Z;
+		// K_reduced = ZT * K * Z;
+		K_reduced = K * Z;
 	}
 }
 
