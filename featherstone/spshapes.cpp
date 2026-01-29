@@ -37,6 +37,23 @@ Sphere::Sphere(float radius) : Shape() {
 		Matrix3f::Zero(), Vector3f::Constant(vol).asDiagonal());
 }
 
+Cylinder::Cylinder(float r, float h) {
+	this->half_dims = Vector2f(r, h * 0.5f);
+	float r2 = r * r;
+	float h2 = h * h;
+	this->type = Type::Cylinder;
+	this->vol = Pi * r2 * h;
+	this->com = Vector3f::Zero();
+
+	this->Ic3 = Matrix3f::Zero();
+	this->Ic3(0, 0) = this->vol * (3.0f * r2 + h2) / 12.0f;
+	this->Ic3(2, 2) = this->vol * (3.0f * r2 + h2) / 12.0f;
+	this->Ic3(1, 1) = 0.5f * this->vol * r2;
+	this->Ic6 = Mat66(
+		Ic3, Matrix3f::Zero(),
+		Matrix3f::Zero(), Vector3f::Constant(vol).asDiagonal());
+}
+
 // signed volume of tetrahedron, with one vertex at origin
 inline static float V_tetra(const Vector3f& p1, const Vector3f& p2, const Vector3f& p3) {
 	Matrix3f m;

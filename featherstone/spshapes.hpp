@@ -36,6 +36,12 @@ struct Sphere : public Shape {
 	float radius;
 };
 
+struct Cylinder : public Shape {
+	Cylinder(float r, float h);
+
+	Eigen::Vector2f half_dims;
+};
+
 struct ConvexHull : public Shape {
 	ConvexHull(const float* vertices, uint32_t n_vertices, const uint16_t* indices, uint32_t n_indices);
 

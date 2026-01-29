@@ -119,6 +119,9 @@ std::shared_ptr<Shape> create_shape_from_collider(const Collider& collider) {
 		else if (shape_type == ImplicitShape::Type::Sphere) {
 			shape = std::make_shared<Sphere>(collider.implicit_shape->half_dims.x());
 		}
+		else if (shape_type == ImplicitShape::Type::Cylinder) {
+			shape = std::make_shared<Cylinder>(collider.implicit_shape->half_dims.x(), collider.implicit_shape->half_dims.y() * 2.0f);
+		}
 		else {
 			assert(false);
 		}

@@ -279,12 +279,12 @@ Mesh RigidWorldRenderer::build_mesh(
         return new_mesh;
     }
     else if (shape == Shape::Cylinder) {
-        Mesh mesh = GenMeshCylinder(half_dim.x, half_dim.y * 2.0f, 6); // Generated cylinder suts on z=0 plane. Move it downwars so that half of it goes under z = 0
+        Mesh mesh = GenMeshCylinder(half_dim.x, half_dim.y * 2.0f, 6); // Generated cylinder sits on y=0 plane. Move it downwars so that half of it goes under y=0
         Mesh new_mesh = move_and_reupload_mesh(mesh, rot * glm::vec3(0.0f, -half_dim.y, 0.0f) + trans, rot);
         return new_mesh;
     }
     else if (shape == Shape::Sphere) {
-        Mesh mesh = GenMeshSphere(half_dim.x * 1.01f, 8, 8); // Generated cylinder suts on z=0 plane. Move it downwars so that half of it goes under z = 0
+        Mesh mesh = GenMeshSphere(half_dim.x * 1.01f, 8, 8);
         Mesh new_mesh = move_and_reupload_mesh(mesh, trans, rot);
         return new_mesh;
     }

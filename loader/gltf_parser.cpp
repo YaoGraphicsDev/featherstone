@@ -599,6 +599,9 @@ static bool collect_articulation_links(const tg::Node& node, int this_id) {
 					1, 0, 0;
 				link.bodyA_rotation = rotation * Quaternionf(xz_correction);
 			}
+			else if (link.joint.type == ArticulationLinkage::Joint::Free) {
+				link.bodyA_rotation = rotation;
+			}
 			else {
 				std::cout << "joint type not supported. joint_id = " << joint_id << ", id = " << c_id << std::endl;
 				assert(false);
@@ -828,9 +831,9 @@ static bool load_all_physics_materials(nlohmann::json& ext) {
 
 static bool parse_joint_dofs(nlohmann::json& joint, int& dof_flags, ArticulationLinkage::Joint::DofLimits& dof_limits) {
 	if (!joint.contains("limits")) {
-		// This joint is not even a joint
-		std::cout << "limits field not found. What's the point of this joint anyway" << std::endl;
-		return false;
+		// This is a 6 dof joint
+		dof_flags = 0b111111; // all dofs free
+		return true;
 	}
 
 	nlohmann::json& limits = joint["limits"];
@@ -897,6 +900,8 @@ static bool load_all_physics_joints(nlohmann::json& ext) {
 		const int ang_x_free = 0b100000;
 		const int linear_x_free = 0b000100;
 		const int ang_y_free = 0b010000;
+		const int linear_free = 0b000111;
+		const int ang_free = 0b111000;
 		if (dof_flags == linear_x_free) {
 			phy_joint.type = ArticulationLinkage::Joint::Prismatic;
 		}
@@ -905,6 +910,9 @@ static bool load_all_physics_joints(nlohmann::json& ext) {
 		}
 		else if (dof_flags == (ang_x_free | linear_x_free)) {
 			phy_joint.type = ArticulationLinkage::Joint::Cylindrical;
+		}
+		else if (dof_flags == (ang_free | linear_free)) {
+			phy_joint.type = ArticulationLinkage::Joint::Free;
 		}
 		else {
 			std::cout << "invalid dof flag = " << dof_flags << ", physicsJoints[" << i << "]" << std::endl;

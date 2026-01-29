@@ -76,6 +76,7 @@ struct ArticulationLinkage {
             Revolute = 0,
             Prismatic,
             Cylindrical,
+            Free
         };
         Type type;
         struct Limit {

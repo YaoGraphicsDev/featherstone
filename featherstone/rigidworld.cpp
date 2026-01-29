@@ -32,6 +32,11 @@ inline btCollisionShape* btconvexhull(std::shared_ptr<Shape> shape) {
 	return btshape;
 }
 
+inline btCollisionShape* btcylinder(std::shared_ptr<Shape> shape) {
+	const Cylinder* cy = static_cast<Cylinder*>(shape.get());
+	return new btCylinderShape(btVector3(cy->half_dims.x(), cy->half_dims.y(), cy->half_dims.x()));
+}
+
 inline btCollisionShape* btcompound(std::shared_ptr<Shape> shape) {
 	const CompoundShape* cs = static_cast<CompoundShape*>(shape.get());
 	btCompoundShape* btshape = new btCompoundShape(true, cs->compositions.size());
@@ -44,6 +49,9 @@ inline btCollisionShape* btcompound(std::shared_ptr<Shape> shape) {
 		}
 		else if (comp.shape->type == Shape::Type::Sphere) {
 			btshape->addChildShape(bttrans(comp.rotation, comp.translation), btsphere(comp.shape));
+		}
+		else if (comp.shape->type == Shape::Type::Cylinder) {
+			btshape->addChildShape(bttrans(comp.rotation, comp.translation), btcylinder(comp.shape));
 		}
 		else {
 			assert(false);
@@ -58,6 +66,7 @@ std::shared_ptr<RigidWorld::Collider> RigidWorld::Collider::create(const RigidBo
 	else if (rigidbody.shape->type == Shape::Type::Sphere) shape = btsphere(rigidbody.shape);
 	else if (rigidbody.shape->type == Shape::Type::ConvexHull) shape = btconvexhull(rigidbody.shape);
 	else if (rigidbody.shape->type == Shape::Type::Compound) shape = btcompound(rigidbody.shape);
+	else if (rigidbody.shape->type == Shape::Type::Cylinder) shape = btcylinder(rigidbody.shape);
 	else {
 		assert(false);
 	}
@@ -90,6 +99,7 @@ std::vector<std::shared_ptr<RigidWorld::Collider>> RigidWorld::Collider::create(
 		else if (body->shape->type == Shape::Type::Sphere) shape = btsphere(body->shape);
 		else if (body->shape->type == Shape::Type::ConvexHull) shape = btconvexhull(body->shape);
 		else if (body->shape->type == Shape::Type::Compound) shape = btcompound(body->shape);
+		else if (body->shape->type == Shape::Type::Cylinder) shape = btcylinder(body->shape);
 		else {
 			assert(false);
 		}
