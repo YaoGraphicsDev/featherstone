@@ -88,7 +88,7 @@ ArticulatedBCPVelocity::ArticulatedBCPVelocity(std::shared_ptr<BodyWrapper> b, c
 
 MVector ArticulatedBCPVelocity::vc() {
 	if (bw->id > 0) {
-		MCoordinates dq = bw->ab->dq(bw->id);
+		MCoordinates dq = bw->ab->dq();
 		assert(Jc.cols() == dq.rows());
 		MVector vc = Jc * dq;
 		return vc;

@@ -217,13 +217,17 @@ std::shared_ptr<ArticulatedBody> create_articulated_body(const SceneGraph& graph
 	}
 
 	for (const ArticulationLinkage& link : art_tree) {
+		std::vector<ArticulatedBody::SpringParam> spring_params;
+		for (auto& dof_spring : link.joint.dof_springs) {
+			spring_params.push_back({dof_spring.stiffness, dof_spring.damping});
+		}
 		art->add_joint(
 			link.name,
 			(ArticulatedBody::JointType)link.joint.type,
 			link.bodyA_id,
 			link.bodyB_id,
 			link.bodyA_rotation.toRotationMatrix(),
-			link.bodyA_translation, nullptr, !link.enable_collision);
+			link.bodyA_translation, !link.enable_collision, spring_params);
 	}
 
 	return art;

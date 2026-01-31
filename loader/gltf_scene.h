@@ -79,6 +79,12 @@ struct ArticulationLinkage {
             Free
         };
         Type type;
+        struct Spring {
+            float stiffness;
+            float damping;
+        };
+        typedef std::vector<Spring> DofSprings;
+        DofSprings dof_springs; // spring configuration for each available dof
         struct Limit {
             float min;
             float max;

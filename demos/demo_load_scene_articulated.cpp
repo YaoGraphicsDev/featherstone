@@ -5,9 +5,24 @@
 using namespace Eigen;
 using namespace SPD;
 
+const std::map<int, std::string> scene_map = {
+	{0, "articulated/scissorlift.gltf"},
+	{1, "articulated/spring.gltf"}
+};
+
 int main() {
+	std::cout << "pick a scene:" << std::endl;
+	std::cout << "[0] scissorlift" << std::endl;
+	std::cout << "[1] spring" << std::endl;
+	int scene_id;
+	std::cin >> scene_id;
+	if (scene_id >= scene_map.size()) {
+		std::cout << "invalid scene id = " << scene_id << std::endl;
+		return 0;
+	}
+
 	Scene scene;
-	if (!load_gltf(std::string(SCENES_DIR) + "articulated/scissorlift.gltf", scene, GLTFParseOption::BlenderExport)) {
+	if (!load_gltf(std::string(SCENES_DIR) + scene_map.at(scene_id), scene, GLTFParseOption::BlenderExport)) {
 		std::cout << "error loading gltf resource" << std::endl;
 		return 0;
 	}

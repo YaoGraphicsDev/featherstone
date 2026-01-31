@@ -50,23 +50,10 @@ void ArticulatedBody::move_joints() {
 	}
 }
 
-void ArticulatedBody::joint_damping() {
-	for (int i = 1; i < tree_joints.size(); ++i) {
-		tree_joints[i]->taue -= tree_joints[i]->dq * 0.99f;
-	}
-	// TODO: add effective damping to loop joints and constraints
-}
-
-void ArticulatedBody::clear_joint_forces() {
-	for (int i = 1; i < tree_joints.size(); ++i) {
-		tree_joints[i]->taue.setZero();
-	}
-}
-
-void ArticulatedBody::solve_ddq() {
+void ArticulatedBody::solve_ddq(float dt) {
 	// build tau and C
 	FCoordinates tau;
-	MCoordinates C;
+	FCoordinates C;
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<const Joint> j = tree_joints[i];
 		tau.conservativeResize(tau.size() + j->taue.size());
@@ -74,30 +61,47 @@ void ArticulatedBody::solve_ddq() {
 		C.conservativeResize(C.size() + j->bias.size());
 		C.tail(j->bias.size()) = j->bias;
 	}
-	//std::cout << "tau = " << std::endl;
-	//std::cout << tau << std::endl;
-	assert(tau.rows() == H.rows() && C.rows() == H.rows());
 
-	// compute loop joint force variale lambda
+	assert(tau.rows() == H.rows() && C.rows() == H.rows());
+	
+	FCoordinates tC = tau - C ; // tau - C
+	if (enable_springs) {
+		tC = tC /* + Ks * q0*/ /*q0 always start at 0*/ - (Ds + dt * Ks) * dq(true) - Ks * q(true);
+	}
+
+	auto KH_inv = [&](const Eigen::LLT<JDyad>& H_llt, const GPower& K) -> Unitless { // K * H^-1
+		return (H_llt.solve(K.transpose())).transpose();
+	};
+	// loop joint force variale lambda
 	Unitless lambda = Unitless::Zero(K.rows(), 1);
 	if (!loop_joints.empty()) {
 		if (constraints.empty()) {
-			Unitless KHi = K * H.inverse();
+			Unitless KHi;
+			if (!enable_springs) {
+				KHi = KH_inv(H_llt, K);
+			}
+			else {
+				KHi = KH_inv(H_spring_llt, K);
+			}
 			Unitless A = KHi * K.transpose();
-			Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
-			Unitless b = _k - KHi * (tau - C);
-			// InvOrPinvSolver inv_A_solve(A);
-			// lambda = inv_A_solve.solve(b);
-			lambda = inv_A * b;
+			Unitless b = _k - KHi * tC;
+			//Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
+			//lambda = inv_A * b;
+			 InvOrPinvSolver A_inv(A);
+			 lambda = A_inv.solve(b);
 		}
 		else {
-			Unitless KHi = K_reduced * H_reduced.inverse();
-			Unitless A = KHi * K_reduced.transpose(); // TODO: K * Z being redundant
-			Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
-			Unitless b = /*ZT **/ _k - KHi * (ZT * (tau - C)); // TODO: tau - C computed multiple times. Duplicated
-			// InvOrPinvSolver inv_A_solve(A);
-			// lambda = inv_A_solve.solve(b);
-			lambda = inv_A * b;
+			Unitless KHi;
+			if (!enable_springs) {
+				KHi = KH_inv(H_reduced_llt, K_reduced);
+			}
+			else {
+				KHi = KH_inv(H_spring_reduced_llt, K_reduced);
+			}
+			Unitless A = KHi * K_reduced.transpose();
+			Unitless b = /*ZT **/ _k - KHi * (ZT * tC);
+			InvOrPinvSolver A_inv(A);
+			lambda = A_inv.solve(b);
 		}
 	}
 
@@ -106,19 +110,39 @@ void ArticulatedBody::solve_ddq() {
 
 	if (constraints.empty()) {
 		if (loop_joints.empty()) {
-			ddq = H_llt.solve(tau - C);
+			if (!enable_springs) {
+				ddq = H_llt.solve(tC);
+			}
+			else {
+				ddq = H_spring_llt.solve(tC);
+			}
 		}
 		else {
-			ddq = H_llt.solve(tau - C + K.transpose() * lambda);
+			if (!enable_springs) {
+				ddq = H_llt.solve(tC + K.transpose() * lambda);
+			}
+			else {
+				ddq = H_spring_llt.solve(tC + K.transpose() * lambda);
+			}
 		}
 	}
 	else {
 		MCoordinates ddq_reduced;
 		if (loop_joints.empty()) {
-			ddq_reduced = H_reduced_llt.solve(ZT * (tau - C));
+			if (!enable_springs) {
+				ddq_reduced = H_reduced_llt.solve(ZT * tC);
+			}
+			else {
+				ddq_reduced = H_spring_reduced_llt.solve(ZT * tC);
+			}
 		}
 		else {
-			ddq_reduced = H_reduced_llt.solve(ZT * (tau - C) + (K * Z).transpose() * lambda);
+			if (!enable_springs) {
+				ddq_reduced = H_reduced_llt.solve(ZT * tC + (K * Z).transpose() * lambda);
+			}
+			else {
+				ddq_reduced = H_spring_reduced_llt.solve(ZT * tC + (K * Z).transpose() * lambda);
+			}
 		}
 		
 		// recover full ddq from reduced
@@ -133,28 +157,19 @@ void ArticulatedBody::solve_ddq() {
 	}
 }
 
-//void ArticulatedBody::step(float dt) {
-//	assert(false);
-//	move_joints(dt);
-//	move_bodies();
-//
-//	compute_bias_RNEA();
-//	compute_H();
-//	compute_K_k();
-//
-//	joint_damping();
-//	solve_ddq();
-//	clear_joint_forces();
-//}
-
 void ArticulatedBody::integrate_velocity(float dt) {
 	compute_bias_RNEA();
-	compute_H();
+	if (enable_springs) {
+		compute_H_spring(dt);
+	}
+	else {
+		compute_H();
+	}
 	if (!loop_joints.empty()) {
 		compute_K_k();
 	}
 	// joint_damping();
-	solve_ddq();
+	solve_ddq(dt);
 	// clear_joint_forces();
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<Joint> j = tree_joints[i];
@@ -217,9 +232,9 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 	size_t id1,
 	Eigen::Matrix3f base0,
 	Eigen::Vector3f trans0,
-	void* params,
-	bool disable_collision) {
-	return add_joint(name, type, bodies[id0], bodies[id1], base0, trans0, params, disable_collision);
+	bool disable_collision,
+	std::vector<SpringParam> spring_params) {
+	return add_joint(name, type, bodies[id0], bodies[id1], base0, trans0, disable_collision, spring_params);
 }
 
 std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
@@ -229,8 +244,8 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 	std::shared_ptr<Body> b1,
 	Eigen::Matrix3f base0,
 	Eigen::Vector3f trans0,
-	void* params,
-	bool disable_collision) {
+	bool disable_collision,
+	std::vector<SpringParam> spring_params) {
 
 	assert(b0 && b1);
 	std::shared_ptr<Joint> c = std::make_shared<Joint>();
@@ -247,17 +262,9 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 	c->X_0_J0 = m_transform(Eigen::Matrix3f::Identity(), c->bb0, c->bt0);
 	c->X_1_J1 = m_transform(Eigen::Matrix3f::Identity(), c->bb1, c->bt1);
 	c->X_J0_J1 = MTransform::Identity();
-	if (type == JointType::Revolute ||
-		type == JointType::Prismatic ||
-		type == JointType::Cylindrical) {
-		c->S = &S.at(type);
-		c->T = &T.at(type);
-		c->Ta = &Ta.at(type);
-	}
-	else {
-		assert(false);
-	}
-
+	c->S = &S.at(type);
+	c->T = &T.at(type);
+	c->Ta = &Ta.at(type);
 
 	if (type == JointType::Revolute ||
 		type == JointType::Prismatic) {
@@ -288,6 +295,17 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 		assert(false);
 	}
 	c->disable_collision = disable_collision;
+
+	if (!spring_params.empty()) {
+		c->enable_spring = true;
+		c->ks = MCoordinates::Zero(c->q.size(), 1);
+		c->ds = MCoordinates::Zero(c->q.size(), 1);
+		for (int i = 0; i < std::min((size_t)c->ks.rows(), spring_params.size()); ++i) {
+			c->ks(i) = std::abs(spring_params[i].k);
+			c->ds(i) = std::abs(spring_params[i].d);
+		}
+	}
+
 	tree_joints.push_back(c);
 
 	b0->children_joints.push_back(c);
@@ -497,14 +515,47 @@ bool ArticulatedBody::build_tree() {
 		_k = GPower::Zero(k_acc->total_rows(), k_acc->total_cols());
 	}
 
+	// configure spring matrices
+	for (auto j : loop_joints) {
+		if (j->enable_spring) {
+			std::cout << "spring configuration on loop closure joint [" << j->name << "] will be ignored" << std::endl;
+			assert(false);
+		}
+	}
+
+	Ks = Unitless::Zero(H.rows(), H.cols());
+	Ds = Unitless::Zero(H.rows(), H.cols());
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		auto j = tree_joints[i];
+		if (j->enable_spring) {
+			auto& block = H_acc->blocks[i - 1][i - 1];
+			assert(j->ks.rows() == block.cols);
+			assert(j->ds.rows() == block.cols);
+			Ks.diagonal().segment(block.start_col, block.cols) = j->ks;
+			Ds.diagonal().segment(block.start_col, block.cols) = j->ds;
+			enable_springs |= true;
+		}
+	}
+
 	// configure constraints
 	for (std::shared_ptr<Constraint> c : constraints) {
 		c->C = MCoordinates::Zero(H.cols(), 1);
 		int j0_id = c->j0->id;
 		int j1_id = c->j1->id;
-		assert(j0_id > 0 && j1_id > 0); // constrained joints cannot be loop joints
-		c->C(H_acc->blocks[j0_id - 1][j0_id - 1].start_col + c->msubspace_col0) = 1.0f;
-		c->C(H_acc->blocks[j1_id - 1][j1_id - 1].start_col + c->msubspace_col1) = c->r01;
+		if (j0_id < 0 || j1_id < 0) {
+			if (j0_id < 0) {
+				std::cout << "constraint does not work on loop joint [" << c->j0->name << "]" << std::endl;
+				assert(false);
+			}
+			else {
+				std::cout << "constraint does not work on loop joint [" << c->j1->name << "]" << std::endl;
+				assert(false);
+			}
+		}
+		else {
+			c->C(H_acc->blocks[j0_id - 1][j0_id - 1].start_col + c->msubspace_col0) = 1.0f;
+			c->C(H_acc->blocks[j1_id - 1][j1_id - 1].start_col + c->msubspace_col1) = c->r01;
+		}
 	}
 
 	if (!constraints.empty()) {
@@ -519,7 +570,10 @@ bool ArticulatedBody::build_tree() {
 		ZT = Z.transpose();
 
 		// If Z has 0 columns, that means all dofs are lost, fully constrained
-		assert(Z.cols() > 0);
+		if (Z.cols() == 0) {
+			std::cout << "mechanism fully constrained. No DoF left." << std::endl;
+			assert(false);
+		}
 	}
 
 	return true;
@@ -599,17 +653,26 @@ MSubspace ArticulatedBody::jacobian_0(size_t body_id) {
 	return J0;
 }
 
-MCoordinates ArticulatedBody::dq(size_t body_id) {
-	MCoordinates dq_chain = MCoordinates::Zero(H.rows());
+MCoordinates ArticulatedBody::q(bool full_stack) {
+	MCoordinates q_chain = MCoordinates::Zero(H.rows());
 
-	if (body_id == 0 || body_id >= bodies.size()) {
-		assert(false);
-		return dq_chain;
+	// unlike the Jacobian
+	// we need a full chain of dq because constrained joints may not be on the tree to the root
+	for (int i = 1; i < tree_joints.size(); ++i) {
+		int offset = H_acc->blocks[i - 1][i - 1].start_row;
+		int n = H_acc->blocks[i - 1][i - 1].rows;
+		q_chain.segment(offset, n) = tree_joints[i]->q;
 	}
-	assert(body_id < bodies.size());
-	assert(H.rows() == H.cols());
-	assert(body_id <= H_acc->blocks.size());
-	size_t i = body_id;
+
+	if (!constraints.empty() && !full_stack) {
+		q_chain = ZT * q_chain;
+	}
+
+	return q_chain;
+}
+
+MCoordinates ArticulatedBody::dq(bool full_stack) {
+	MCoordinates dq_chain = MCoordinates::Zero(H.rows());
 
 	// unlike the Jacobian
 	// we need a full chain of dq because constrained joints may not be on the tree to the root
@@ -619,8 +682,7 @@ MCoordinates ArticulatedBody::dq(size_t body_id) {
 		dq_chain.segment(offset, n) = tree_joints[i]->dq;
 	}
 
-
-	if (!constraints.empty()) {
+	if (!constraints.empty() && !full_stack) {
 		dq_chain = ZT * dq_chain;
 	}
 
@@ -718,6 +780,19 @@ void ArticulatedBody::compute_bias_RNEA() {
 	}
 }
 
+void ArticulatedBody::compute_H_spring(float dt) {
+	compute_H();
+	assert(enable_springs);
+	H_spring = H + dt * dt * Ks + dt * Ds;
+	H_spring_llt = H_spring.llt();
+	assert(H_spring_llt.info() == Eigen::Success);
+	if (!constraints.empty()) {
+		H_spring_reduced = ZT * H_spring * Z;
+		H_spring_reduced_llt = H_spring_reduced.llt();
+		assert(H_spring_reduced_llt.info() == Eigen::Success);
+	}
+}
+
 void ArticulatedBody::compute_H() {
 	std::vector<Dyad> Ic(bodies.size(), Dyad::Zero());
 	for (int i = 1; i < bodies.size(); ++i) {
@@ -742,10 +817,12 @@ void ArticulatedBody::compute_H() {
 	}
 
 	H_llt = H.llt();
+	assert(H_llt.info() == Eigen::Success);
 
 	if (!constraints.empty()) {
 		H_reduced = ZT * H * Z;
 		H_reduced_llt = H_reduced.llt();
+		assert(H_reduced_llt.info() == Eigen::Success);
 	}
 }
 

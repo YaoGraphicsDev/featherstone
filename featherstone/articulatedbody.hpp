@@ -101,8 +101,18 @@ struct ArticulatedBody {
 
 		bool disable_collision = true; // disable collision across joint
 
+		// spring parameters
+		bool enable_spring = false;
+		MCoordinates ks; // stiffness
+		MCoordinates ds; // damping
+
 		// values set when building dynamic tree
 		int id;
+	};
+
+	struct SpringParam {
+		float k;
+		float d;
 	};
 
 	std::shared_ptr<Joint> add_joint(
@@ -112,8 +122,8 @@ struct ArticulatedBody {
 		size_t id1,
 		Eigen::Matrix3f base0,
 		Eigen::Vector3f trans0,
-		void* params = nullptr,/*additional parameters*/
-		bool disable_collision = true);
+		bool disable_collision = true,
+		std::vector<SpringParam> spring_params = {});
 
 	std::shared_ptr<Joint> add_joint(
 		std::string name,
@@ -122,8 +132,8 @@ struct ArticulatedBody {
 		std::shared_ptr<Body> b1,
 		Eigen::Matrix3f base0,
 		Eigen::Vector3f trans0,
-		void* params = nullptr,/*additional parameters*/
-		bool disable_collision = true);
+		bool disable_collision = true,
+		std::vector<SpringParam> spring_params = {});
 
 	std::shared_ptr<Joint> get_joint(const std::string& name) const;
 
@@ -160,7 +170,9 @@ struct ArticulatedBody {
 	// return Jacobian in body0 space
 	MSubspace jacobian_0(size_t body_id);
 
-	MCoordinates dq(size_t body_id);
+	MCoordinates q(bool full_stack = false);
+
+	MCoordinates dq(bool full_stack = false);
 
 	void apply_delta_dq(MCoordinates delta_dq);
 
@@ -171,14 +183,11 @@ struct ArticulatedBody {
 	// recursive newton-euler algo
 	void compute_bias_RNEA();
 
-	void solve_ddq();
+	void solve_ddq(float dt);
 
-	// TODO: temporary
-	void joint_damping();
+	void compute_H();
 
-	void clear_joint_forces();
-
-	void compute_H(); // joint space inertia matrix
+	void compute_H_spring(float dt); // joint space inertia matrix
 
 	GPower compute_delta(JointType type, const MTransform& X); // positional error of loop joints
 
@@ -246,15 +255,25 @@ struct ArticulatedBody {
 
 	std::vector<MVector> a_vp; // velocity product. Acceleration of bodies if tree joint accelerations (ddq) are zero
 
+	bool enable_springs = false;
+	Unitless Ks; // spring stiffness matrix
+	Unitless Ds; // spring damping matrix
+
 	JDyad H; // joint space inertia matrix H
 	Eigen::LLT<JDyad> H_llt;
 	std::shared_ptr<BlockAccess> H_acc = nullptr;
+
+	JDyad H_spring;
+	Eigen::LLT<JDyad> H_spring_llt;
 
 	Unitless Z; // orthogonal complement of constraint 
 	Unitless ZT;
 
 	JDyad H_reduced; // Z^T H Z
 	Eigen::LLT<JDyad> H_reduced_llt;
+
+	JDyad H_spring_reduced; // H + dt^2 Ks + dt Ds
+	Eigen::LLT<JDyad> H_spring_reduced_llt;
 
 	GPower K;
 	std::shared_ptr<BlockAccess> K_acc;
