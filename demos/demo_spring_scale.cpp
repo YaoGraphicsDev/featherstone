@@ -35,7 +35,7 @@ int main() {
 	std::shared_ptr<ArticulatedBody::Joint> follow = artbody->get_joint("following_revolute");
 	if (!rack) {
 		std::cout << "Cannot find rack prismatic joint" << std::endl;
-		assert(false);
+		assert(false); 
 		return 0;
 	}
 	if (!follow) {
@@ -43,7 +43,7 @@ int main() {
 		assert(false);
 		return 0;
 	}
-	artbody->add_constraint("rack_follow", rack, follow, -0.225f);
+	artbody->add_constraint("rack_follow", rack, follow, -0.45f);
 	g_world->add_body(artbody);
 
 	// add rigid bodies
