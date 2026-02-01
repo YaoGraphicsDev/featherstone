@@ -142,10 +142,10 @@ std::shared_ptr<Shape> create_shape_from_collider(const Collider& collider) {
 }
 
 std::shared_ptr<Shape> create_compound_shape_from_collider(const std::vector<Collider>& colliders) {
-	std::vector<CompoundShape::Composition> comps;
+	std::vector<CompoundShape::Composition> comps; 
 	for (const Collider& c : colliders) {
 		comps.emplace_back();
-		comps.back().shape = create_shape_from_collider(c);
+ 		comps.back().shape = create_shape_from_collider(c);
 		if (c.implicit_shape) {
 			comps.back().rotation = c.implicit_shape_rotation;
 			comps.back().translation = c.implicit_shape_translation;
@@ -170,12 +170,12 @@ std::shared_ptr<RigidBody> create_rigidbody_from_node(const SceneNode& node) {
 
 	config.name = node.name;
 
-	if (node.physical->colliders.size() == 1) {
-		config.shape = create_shape_from_collider(node.physical->colliders[0]);
-	}
-	else {
+	//if (node.physical->colliders.size() == 1) {
+	//	config.shape = create_shape_from_collider(node.physical->colliders[0]);
+	//}
+	//else {
 		config.shape = create_compound_shape_from_collider(node.physical->colliders);
-	}
+	// }
 
 	config.rotation = node.world_rotation;
 	config.translation = node.world_translation;
