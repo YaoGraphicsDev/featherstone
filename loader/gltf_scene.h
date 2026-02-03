@@ -76,7 +76,7 @@ struct ArticulationLinkage {
             Revolute = 0,
             Prismatic,
             Cylindrical,
-            Free
+            Spherical
         };
         Type type;
         struct Spring {

@@ -211,13 +211,21 @@ void RigidWorld::step(float dt) {
 		contact_solver->solve_velocity();
 		loop_joint_solver->solve_velocity();
 	}
-	contact_solver->project_velocity(); // TODO: consider moving this to RigidWorld. project_velocity should not be exclusive to contact solver
+	
+	for (auto artbody : artbodies) {
+		artbody->project_velocity();
+	}
+	// contact_solver->project_velocity(); // TODO: consider moving this to RigidWorld. project_velocity should not be exclusive to contact solver
 
 	integrate_position(dt);
 
 	for (uint32_t i = 0; i < max_position_solve_iterations; ++i) {
 		contact_solver->solve_position();
 		loop_joint_solver->solve_position();
+	}
+
+	for (auto artbody : artbodies) {
+		artbody->project_velocity();
 	}
 }
 

@@ -5,14 +5,32 @@
 
 namespace SPD {
 
+// loop closure joint Baumguarte position correction parameters
+const float alpha = 0.5f;
+const float beta = 0.5f;
+
+// spherical joint gyro damping
+const float spherical_damping_coeff = 0.3f;
+
+inline Eigen::Matrix3f so3_exp(const Eigen::Vector3f& w) {
+	float theta = w.norm();
+	if (theta < 1e-6f)
+		return Eigen::Matrix3f::Identity();
+	Eigen::Vector3f axis = w / theta;
+	return Eigen::AngleAxisf(theta, axis).toRotationMatrix();
+}
+
+inline Eigen::Vector3f so3_log(const Eigen::Matrix3f& R) {
+	Eigen::AngleAxisf aa(R);
+	float theta = aa.angle();
+	if (theta < 1e-6f)
+		return Eigen::Vector3f::Zero();
+	return aa.axis() * theta;
+}
 
 void ArticulatedBody::move_joints() {
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<Joint> j = tree_joints[i];
-
-		// semi-implicit Euler
-		// j->dq += j->ddq * dt;
-		// j->q += j->dq * dt;
 
 		// TODO: update X_J0_J1
 		if (j->type == JointType::Revolute) {
@@ -32,6 +50,13 @@ void ArticulatedBody::move_joints() {
 				Eigen::Matrix3f::Identity(),
 				Eigen::AngleAxisf(j->q[0], Eigen::Vector3f::UnitZ()).toRotationMatrix(),
 				Eigen::Vector3f::UnitZ() * j->q[1]);
+		}
+		else if (j->type == JointType::Spherical) {
+			Eigen::Matrix3f rot = j->qs.toRotationMatrix();
+			j->X_J0_J1 = m_transform(
+				Eigen::Matrix3f::Identity(),
+				rot,
+				Eigen::Vector3f::Zero());
 		}
 		else {
 			assert(false);
@@ -85,8 +110,6 @@ void ArticulatedBody::solve_ddq(float dt) {
 			}
 			Unitless A = KHi * K.transpose();
 			Unitless b = _k - KHi * tC;
-			//Unitless inv_A = A.completeOrthogonalDecomposition().pseudoInverse();
-			//lambda = inv_A * b;
 			 InvOrPinvSolver A_inv(A);
 			 lambda = A_inv.solve(b);
 		}
@@ -168,9 +191,7 @@ void ArticulatedBody::integrate_velocity(float dt) {
 	if (!loop_joints.empty()) {
 		compute_K_k();
 	}
-	// joint_damping();
 	solve_ddq(dt);
-	// clear_joint_forces();
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<Joint> j = tree_joints[i];
 		j->dq += j->ddq * dt;
@@ -184,7 +205,18 @@ void ArticulatedBody::integrate_velocity(float dt) {
 void ArticulatedBody::integrate_position(float dt) {
 	for (int i = 1; i < tree_joints.size(); ++i) {
 		std::shared_ptr<Joint> j = tree_joints[i];
-		j->q += j->dq * dt;
+		if (j->type == JointType::Spherical) {
+			Eigen::Vector3f w = j->dq * dt;
+			float theta = w.norm();
+			Eigen::Quaternionf dqrot = (theta < 1e-6f)
+				? Eigen::Quaternionf::Identity()
+				: Eigen::Quaternionf(Eigen::AngleAxisf(theta, w / theta));
+			j->qs = (j->qs * dqrot).normalized();
+			j->q = so3_log(j->qs.toRotationMatrix());
+		}
+		else {
+			j->q += j->dq * dt;
+		}
 	}
 	move_joints();
 	project_position();
@@ -204,7 +236,7 @@ void ArticulatedBody::project_velocity() {
 		const MSubspace& Si = *(Ji->S);
 		const MCoordinates& dqi = Ji->dq;
 		// const MCoordinates& ddqi = Ji->ddq;
-		MTransform vci = std::move(derivative_cross(vi));
+		// MTransform vci = std::move(derivative_cross(vi));
 
 		vi = X_Li_[i] * vLi + Si * dqi;
 		// ai = X_Li_[i] * aLi + Si * ddqi + vci * Si * dqi;
@@ -291,6 +323,19 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 		c->taue.resize(2, 1);
 		c->taue << 0.0f, 0.0f;
 	}
+	else if (type == JointType::Spherical) {
+		c->q.resize(3, 1);  
+		c->q << 0.0f, 0.0f, 0.0f;
+		c->qs = Eigen::Quaternionf::Identity();
+		c->dq.resize(3, 1);
+		c->dq << 0.0f, 0.0f, 0.0f;
+		c->ddq.resize(3, 1);
+		c->ddq << 0.0f, 0.0f, 0.0f;
+		c->bias.resize(3, 1);
+		c->bias << 0.0f, 0.0f, 0.0f;
+		c->taue.resize(3, 1);
+		c->taue << 0.0f, 0.0f, 0.0f;
+	}
 	else {
 		assert(false);
 	}
@@ -298,8 +343,8 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::add_joint(
 
 	if (!spring_params.empty()) {
 		c->enable_spring = true;
-		c->ks = MCoordinates::Zero(c->q.size(), 1);
-		c->ds = MCoordinates::Zero(c->q.size(), 1);
+		c->ks = MCoordinates::Zero(c->ddq.size(), 1);
+		c->ds = MCoordinates::Zero(c->ddq.size(), 1);
 		for (int i = 0; i < std::min((size_t)c->ks.rows(), spring_params.size()); ++i) {
 			c->ks(i) = std::abs(spring_params[i].k);
 			c->ds(i) = std::abs(spring_params[i].d);
@@ -359,6 +404,11 @@ std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(std
 std::shared_ptr<ArticulatedBody::Constraint> ArticulatedBody::add_constraint(std::string name,
 	std::shared_ptr<Joint> j0, int msubspace_col0,
 	std::shared_ptr<Joint> j1, int msubspace_col1, float r01) {
+	if (j0->type == JointType::Spherical || j1->type == JointType::Spherical) {
+		std::cout << "Constrained spherical joint untested. What are you trying to achieve by constraining spherical joint anyway?" << std::endl;
+		assert(false);
+		return nullptr;
+	}
 	if (j0->S->cols() <= msubspace_col0 || j1->S->cols() <= msubspace_col1) {
 		assert(false);
 		return nullptr;
@@ -535,6 +585,15 @@ bool ArticulatedBody::build_tree() {
 			Ds.diagonal().segment(block.start_col, block.cols) = j->ds;
 			enable_springs |= true;
 		}
+		// mitigate gyro drift when there is no damping or damping too small
+		if (j->type == JointType::Spherical) {
+			assert(j->b1->id > 0); // after building the dynamic tree, the child body of a tree joint is guaranteed not to be base
+			float damping_mass = j->b1->mass;
+			auto& block = H_acc->blocks[i - 1][i - 1];
+			Ds.diagonal().segment(block.start_col, block.cols) 
+				= Ds.diagonal().segment(block.start_col, block.cols).cwiseMax(damping_mass * spherical_damping_coeff);
+			enable_springs |= true;
+		}
 	}
 
 	// configure constraints
@@ -593,13 +652,18 @@ void ArticulatedBody::project_position() {
 		else if (pj->type == JointType::Prismatic) {
 			joint_bases1_world = joint_bases0_world;
 		}
+		else if (pj->type == JointType::Spherical) {
+			// Eigen::Matrix3f rot = so3_exp(pj->q);         // joint0 -> joint1 in joint0 coords
+			Eigen::Matrix3f rot = pj->qs.toRotationMatrix();
+			joint_bases1_world = joint_bases0_world * rot;
+		}
 		else {
 			assert(false);
 		}
 
 		Eigen::Vector3f joint_translation0_world = pb->bases * pj->bt0 + pb->translation;
 		Eigen::Vector3f joint_translation1_world = joint_translation0_world;
-		if (pj->type == JointType::Revolute) {
+		if (pj->type == JointType::Revolute || pj->type == JointType::Spherical) {
 			joint_translation1_world = joint_translation0_world;
 		}
 		else if (pj->type == JointType::Prismatic) {
@@ -615,9 +679,9 @@ void ArticulatedBody::project_position() {
 		// body 1 bases in joint space 1
 		Eigen::Matrix3f body1_bases_joint1 = pj->bb1.transpose();
 		Eigen::Matrix3f body1_bases_world =  joint_bases1_world * body1_bases_joint1;
-		cb->bases = body1_bases_world;
 		cb->rotation = Eigen::Quaternionf(body1_bases_world);
 		cb->rotation.normalize();
+		cb->bases = cb->rotation.toRotationMatrix();
 
 		Eigen::Vector3f body1_translation_joint1 = -body1_bases_joint1 * pj->bt1;
 		Eigen::Vector3f body1_translation_world = joint_translation1_world + joint_bases1_world * body1_translation_joint1;
@@ -715,7 +779,23 @@ void ArticulatedBody::apply_delta_q(MCoordinates delta_q) {
 		int offset = H_acc->blocks[i - 1][i - 1].start_col;
 		int n = H_acc->blocks[i - 1][i - 1].cols;
 		assert(n == tree_joints[i]->q.size());
-		tree_joints[i]->q += delta_q.segment(offset, n);
+
+		auto j = tree_joints[i];
+		if (j->type == JointType::Spherical) {
+			Eigen::Quaternionf qs_inc(so3_exp(delta_q.segment(offset, n)));
+			j->qs = j->qs * qs_inc;
+			
+			
+			//Eigen::Vector3f dtheta = delta_q.segment(offset, n);
+			//Eigen::Matrix3f rot = so3_exp(j->q);
+			//Eigen::Matrix3f rot_inc = so3_exp(dtheta);
+			//assert(false); // check order
+			//rot = rot_inc * rot;
+			j->q = so3_log(j->qs.toRotationMatrix());
+		}
+		else {
+			j->q += delta_q.segment(offset, n);
+		}
 	}
 }
 
@@ -851,6 +931,12 @@ GPower ArticulatedBody::compute_delta(JointType type, const MTransform& X) {
 			-X(0, 2),
 			X(4, 2),
 			-X(3, 2);
+	}
+	else if (type == JointType::Spherical) {
+		delta <<
+			X(4, 0) * X(2, 0) + X(4, 1) * X(2, 1) + X(4, 2) * X(2, 2),
+			X(5, 0) * X(0, 0) + X(5, 1) * X(0, 1) + X(5, 2) * X(0, 2),
+			X(3, 0) * X(1, 0) + X(3, 1) * X(1, 1) + X(3, 2) * X(1, 2);
 	}
 	else {
 		assert(false);

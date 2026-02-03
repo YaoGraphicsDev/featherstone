@@ -12,7 +12,7 @@ void ContactSolver::initialize(
 	const std::vector<std::shared_ptr<ArticulatedBody>>& artbodies,
 	std::shared_ptr<btCollisionDispatcher> dispatcher) {
 	int n_man = dispatcher->getNumManifolds();
-	artbody_map.clear();
+	// artbody_map.clear();
 
 	// set up velocity constraints
  	vcs.clear();
@@ -42,7 +42,7 @@ void ContactSolver::initialize(
 		else {
 			std::shared_ptr<ArticulatedBodyWrapper> ab0 = std::make_shared<ArticulatedBodyWrapper>(artbodies[id0], sub_id0);
 			b0 = ab0;
-			artbody_map[id0] = ab0->ab;
+			// artbody_map[id0] = ab0->ab;
 		}
 		std::shared_ptr<BodyWrapper> b1 = nullptr;
 		if (sub_id1 < 0) {
@@ -51,7 +51,7 @@ void ContactSolver::initialize(
 		else {
 			std::shared_ptr<ArticulatedBodyWrapper> ab1 = std::make_shared<ArticulatedBodyWrapper>(artbodies[id1], sub_id1);
 			b1 = ab1;
-			artbody_map[id1] = ab1->ab;
+			// artbody_map[id1] = ab1->ab;
 		}
 
 		vc.restitution_coeff = std::min(b0->restitution_coeff(), b1->restitution_coeff());
@@ -231,11 +231,11 @@ void ContactSolver::solve_velocity() {
 	}
 }
 
-void ContactSolver::project_velocity() {
-	for (auto& p : artbody_map) {
-		p.second->project_velocity();
-	}
-}
+//void ContactSolver::project_velocity() {
+//	for (auto& p : artbody_map) {
+//		p.second->project_velocity();
+//	}
+//}
 
 // TODO: early-termination if positional delta is lower than a certain threshold
 void ContactSolver::solve_position() {

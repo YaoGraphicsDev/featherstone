@@ -72,7 +72,7 @@ struct ContactSolver {
 
 	void solve_position();
 
-	void project_velocity();
+	// void project_velocity();
 
 	// void out(std::vector<std::shared_ptr<RigidBody>>& bodies);
 
@@ -80,7 +80,7 @@ struct ContactSolver {
 	std::vector<PositionConstraint> pcs;
 
 	// std::map<size_t, std::shared_ptr<RigidBody>> body_map;
-	std::map<size_t, std::shared_ptr<ArticulatedBody>> artbody_map;
+	// std::map<size_t, std::shared_ptr<ArticulatedBody>> artbody_map;
 
 	struct ContactPersistentData {
 		ContactPersistentData() : si_n(0.0f), si_t(FCoordinates::Zero(2, 1)) {}

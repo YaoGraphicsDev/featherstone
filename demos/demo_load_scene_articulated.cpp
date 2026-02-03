@@ -7,13 +7,15 @@ using namespace SPD;
 
 const std::map<int, std::string> scene_map = {
 	{0, "articulated/scissorlift.gltf"},
-	{1, "articulated/spring.gltf"}
+	{1, "articulated/spring.gltf"},
+	{2, "articulated/spherical.gltf"}
 };
 
 int main() {
 	std::cout << "pick a scene:" << std::endl;
 	std::cout << "[0] scissorlift" << std::endl;
 	std::cout << "[1] spring" << std::endl;
+	std::cout << "[2] spherical" << std::endl;
 	int scene_id;
 	std::cin >> scene_id;
 	if (scene_id >= scene_map.size()) {
@@ -76,13 +78,13 @@ int main() {
 	auto draw_articulated_joints = [&](std::shared_ptr<ArticulatedBody> artbody) {
 		for (int i = 1; i < artbody->tree_joints.size(); ++i) {
 			std::shared_ptr<ArticulatedBody::Joint> c = artbody->tree_joints[i];
-			g_renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 1.0f);
-			g_renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 1.0f);
+			g_renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 0.5f);
+			g_renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 0.5f);
 		}
 		for (int i = 0; i < artbody->loop_joints.size(); ++i) {
 			std::shared_ptr<ArticulatedBody::Joint> c = artbody->loop_joints[i];
-			g_renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 1.0f);
-			g_renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 1.0f);
+			g_renderer->draw_bases(v3(c->b0->translation + c->b0->bases * c->bt0), m3(c->b0->bases * c->bb0), 0.5f);
+			g_renderer->draw_bases(v3(c->b1->translation + c->b1->bases * c->bt1), m3(c->b1->bases * c->bb1), 0.5f);
 		}
 	};
 

@@ -599,7 +599,7 @@ static bool collect_articulation_links(const tg::Node& node, int this_id) {
 					1, 0, 0;
 				link.bodyA_rotation = rotation * Quaternionf(xz_correction);
 			}
-			else if (link.joint.type == ArticulationLinkage::Joint::Free) {
+			else if (link.joint.type == ArticulationLinkage::Joint::Spherical) {
 				link.bodyA_rotation = rotation;
 			}
 			else {
@@ -987,8 +987,8 @@ static bool load_all_physics_joints(nlohmann::json& ext) {
 		else if (dof_flags == (ang_x_free | linear_x_free)) {
 			phy_joint.type = ArticulationLinkage::Joint::Cylindrical;
 		}
-		else if (dof_flags == (ang_free | linear_free)) {
-			phy_joint.type = ArticulationLinkage::Joint::Free;
+		else if (dof_flags == (ang_free)) {
+			phy_joint.type = ArticulationLinkage::Joint::Spherical;
 		}
 		else {
 			std::cout << "invalid dof flag = " << dof_flags << ", physicsJoints[" << i << "]" << std::endl;
@@ -1008,6 +1008,10 @@ static bool load_all_physics_joints(nlohmann::json& ext) {
 }
 
 static bool parse_extensions() {
+	if (model.extensions_json_string.empty()) {
+		return true;
+	}
+
 	nl::json ext = nl::json::parse(model.extensions_json_string);
 
 	if (!load_all_implicit_shapes(ext)) {

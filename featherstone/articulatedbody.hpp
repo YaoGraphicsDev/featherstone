@@ -71,8 +71,7 @@ struct ArticulatedBody {
 		Revolute = 0,
 		Prismatic,
 		Cylindrical,
-		Ball,
-		Free
+		Spherical
 	};
 	struct Joint {
 		std::string name;
@@ -93,6 +92,7 @@ struct ArticulatedBody {
 		FSubspace T_p; // parameterized constraint force subspace instance
 		FSubspace Ta_p; // parameterized active force subspace instance
 		MCoordinates q;
+		Eigen::Quaternionf qs; // exclusive to spherical joint
 		MCoordinates dq;
 		MCoordinates ddq;
 		FCoordinates bias; // joint space bias force
@@ -199,7 +199,12 @@ struct ArticulatedBody {
 		{JointType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
 		{JointType::Cylindrical, subspace({
 			{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f},
-			{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})}
+			{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
+		{JointType::Spherical, subspace({
+			{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}
+			})},
 	}; 
 	// joint active force subspace
 	const std::map<JointType, FSubspace> Ta = {
@@ -207,7 +212,12 @@ struct ArticulatedBody {
 		{JointType::Revolute, subspace({{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}})},
 		{JointType::Cylindrical, subspace({
 			{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f},
-			{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})}
+			{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}})},
+		{JointType::Spherical, subspace({
+			{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f}
+			})},
 	};
 	// joint constraint force subspace
 	const std::map<JointType, FSubspace> T = {
@@ -227,7 +237,11 @@ struct ArticulatedBody {
 			{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
-			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }})}
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f }})},
+		{JointType::Spherical, subspace({
+			{ 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f },
+			{ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f }})}
 	};
 
 	Eigen::Matrix<float, 6, Eigen::Dynamic, 0, 6, 6> subspace(std::initializer_list<std::array<float, 6>> columns);
@@ -282,8 +296,6 @@ struct ArticulatedBody {
 	GPower _k;
 	std::shared_ptr<BlockAccess> k_acc;
 
-	const float alpha = 0.5f;
-	const float beta = 0.5f;
 };
 
 }
