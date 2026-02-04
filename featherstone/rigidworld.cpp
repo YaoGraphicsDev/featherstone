@@ -224,9 +224,9 @@ void RigidWorld::step(float dt) {
 		loop_joint_solver->solve_position();
 	}
 
-	for (auto artbody : artbodies) {
-		artbody->project_velocity();
-	}
+	//for (auto artbody : artbodies) {
+	//	artbody->project_velocity(); // 
+	//}
 }
 
 void RigidWorld::collide() {

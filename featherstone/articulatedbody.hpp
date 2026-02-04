@@ -137,6 +137,8 @@ struct ArticulatedBody {
 
 	std::shared_ptr<Joint> get_joint(const std::string& name) const;
 
+	std::shared_ptr<Body> get_body(const std::string& name) const;
+
 	// gear/belt/rack-and-pinion
 	struct Constraint {
 		std::string name;

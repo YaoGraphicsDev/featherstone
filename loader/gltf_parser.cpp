@@ -880,6 +880,7 @@ static bool parse_joint_spring_configs(
 	if (!joint.contains("drives")) {
 		return true;
 	}
+	dof_springs.clear();
 
 	// parse spring configurations if applicable
 	nlohmann::json& drives = joint["drives"];
@@ -891,17 +892,15 @@ static bool parse_joint_spring_configs(
 	const int x_axis = 0;
 	const int y_axis = 1;
 	const int z_axis = 2;
-	if (type == ArticulationLinkage::Joint::Prismatic) {
-		if (drives_size != 1) {
-			std::cout << "illegal drive size = " << drives_size << std::endl;
-			return false;
-		}
-		nlohmann::json drive = drives[0];
-		if (!drive.contains("type") || drive["type"] != "linear") {
+	const std::string linear_axis = "linear";
+	const std::string angular_axis = "angular";
+	auto load_dof_spring = [&](int drive_id, const std::string& drive_type, int axis) {
+		nlohmann::json drive = drives[drive_id];
+		if (!drive.contains("type") || drive["type"] != drive_type) {
 			std::cout << "illegal drive type = " << drive["type"] << std::endl;
 			return false;
 		}
-		if (!drive.contains("axis") || x_axis != int(drive["axis"])) {
+		if (!drive.contains("axis") || axis != int(drive["axis"])) {
 			std::cout << "illegal drive axis = " << int(drive["axis"]) << std::endl;
 			return false;
 		}
@@ -913,31 +912,29 @@ static bool parse_joint_spring_configs(
 			std::cout << "drive does not contain damping field" << std::endl;
 			return false;
 		}
-		dof_springs = { {(float)drive["stiffness"], (float)drive["damping"]} };
+		dof_springs.push_back({ (float)drive["stiffness"], (float)drive["damping"] });
+		return true;
+	};
+
+	if (type == ArticulationLinkage::Joint::Prismatic) {
+		if (drives_size != 1) {
+			std::cout << "illegal drive size = " << drives_size << std::endl;
+			return false;
+		}
+		if (!load_dof_spring(0, linear_axis, x_axis)) {
+			std::cout << "load drive 0 fail, joint type = Prismatic" << std::endl;
+			return false;
+		}
 	}
 	else if (type == ArticulationLinkage::Joint::Revolute) {
 		if (drives_size != 1) {
 			std::cout << "illegal drive size = " << drives_size << std::endl;
 			return false;
 		}
-		nlohmann::json drive = drives[0];
-		if (!drive.contains("type") || drive["type"] != "angular") {
-			std::cout << "illegal drive type = " << drive["type"] << std::endl;
+		if (!load_dof_spring(0, angular_axis, y_axis)) {
+			std::cout << "load drive 0 fail, joint type = Revolute" << std::endl;
 			return false;
 		}
-		if (!drive.contains("axis") || y_axis != int(drive["axis"])) {
-			std::cout << "illegal drive axis = " << int(drive["axis"]) << std::endl;
-			return false;
-		}
-		if (!drive.contains("stiffness")) {
-			std::cout << "drive does not contain stiffness field" << std::endl;
-			return false;
-		}
-		if (!drive.contains("damping")) {
-			std::cout << "drive does not contain damping field" << std::endl;
-			return false;
-		}
-		dof_springs = { {(float)drive["stiffness"], (float)drive["damping"]} };
 	}
 	else {
 		std::cout << "spring configuration does not support this type of joint" << std::endl;

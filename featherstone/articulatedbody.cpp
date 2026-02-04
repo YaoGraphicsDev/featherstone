@@ -181,6 +181,7 @@ void ArticulatedBody::solve_ddq(float dt) {
 }
 
 void ArticulatedBody::integrate_velocity(float dt) {
+	project_velocity();
 	compute_bias_RNEA();
 	if (enable_springs) {
 		compute_H_spring(dt);
@@ -377,6 +378,15 @@ std::shared_ptr<ArticulatedBody::Joint> ArticulatedBody::get_joint(const std::st
 	for (auto j : loop_joints) {
 		if (j->name == name) {
 			return j;
+		}
+	}
+	return nullptr;
+}
+
+std::shared_ptr<ArticulatedBody::Body> ArticulatedBody::get_body(const std::string& name) const {
+	for (auto b : bodies) {
+		if (b->name == name) {
+			return b;
 		}
 	}
 	return nullptr;
