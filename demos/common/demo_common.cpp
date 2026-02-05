@@ -27,6 +27,45 @@ glm::mat3 m3(Matrix3f M) {
 	return m;
 }
 
+
+// signed axis-angle from a to b (float version), axis is oriented to be on the same side as a.cross(b).
+SignedAxisAnglef axis_angle(Eigen::Vector3f a, Eigen::Vector3f b, float eps) {
+	SignedAxisAnglef out;
+	out.axis.setZero();
+	out.angle = 0.0f;
+
+	float na = a.norm();
+	float nb = b.norm();
+	if (na <= eps || nb <= eps)
+		return out; // undefined, return zero rotation
+
+	Eigen::Vector3f an = a / na;
+	Eigen::Vector3f bn = b / nb;
+
+	// Reference hemisphere: a cross b
+	Eigen::Vector3f c = an.cross(bn);
+	const float cn = c.norm();
+
+	// Shortest rotation quaternion
+	Eigen::Quaternionf q;
+	q.setFromTwoVectors(an, bn);
+	q.normalize();
+
+	// Unsigned angle in [0, pi]
+	float w = std::clamp(q.w(), -1.0f, 1.0f);
+	float vnorm = q.vec().norm();
+	float angle = 2.0f * std::atan2(vnorm, w);
+
+	// Axis from quaternion (undefined if angle is almost 0)
+	Eigen::Vector3f axis = (vnorm > eps) ? Vector3f(q.vec() / vnorm) : Vector3f::Zero();
+
+	out.axis = axis;
+	out.angle = angle;
+
+	return out;
+}
+
+
 void init_renderer() {
 	RigidWorldRenderer::Config renderer_config;
 	renderer_config.world_aabb = { glm::vec3(-10.0f, -5.0f, -10.0f), glm::vec3(10.0f, 8.0f, 10.0f) };

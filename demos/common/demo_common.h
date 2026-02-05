@@ -14,6 +14,12 @@ glm::vec3 v3(Eigen::Vector3f v);
 
 glm::mat3 m3(Eigen::Matrix3f M);
 
+struct SignedAxisAnglef {
+	Eigen::Vector3f axis; // unit
+	float angle;          // signed, in (-pi, pi]
+};
+SignedAxisAnglef axis_angle(Eigen::Vector3f a, Eigen::Vector3f b, float eps = 1e-6f);
+
 void init_renderer();
 
 void init_world();

@@ -55,10 +55,10 @@ int main(int argc, char** argv) {
 	server.start();
 
 	// PI control parameters
-	float kp = -60.0f;
-	float ki = -25.0f;
-	float kd = -20.0f;
-	float full_steer = glm::pi<float>() * 0.1f;
+	float kp = -50.0f;
+	float ki = -35.0f;
+	float kd = -25.0f;
+	float full_steer = glm::pi<float>() * 0.15f;
 
 	float wheel_rotate_target = 0.0f;
 	float rig_height = 0.0f;
@@ -150,17 +150,13 @@ int main(int argc, char** argv) {
 		command_handler(cmd_line);
 
 		if (pd_online) {
-			Eigen::AngleAxisf aa(wheel->rotation);
-			float angle = aa.angle();
-			float angle_y = 0.0f;
-			if (angle < 1E-5) {
-				angle_y = 0.0f;
-			}
-			else {
-				Eigen::Vector3f axis = aa.axis();
-				angle_y = axis.y() * angle;
-			}
-			float error = wheel_rotate_target - angle_y;
+			// figure out the turning angle
+			Vector3f wheel_axis = wheel->rotation * -Vector3f::UnitZ();
+			wheel_axis.y() = 0.0f;
+			SignedAxisAnglef aa = axis_angle(-Vector3f::UnitZ(), wheel_axis);
+			float turning_angle = aa.axis.y() * aa.angle;
+
+			float error = wheel_rotate_target - turning_angle;
 			I += error / 60.0f; // may explode if stalls
 			steering->taue(0) = kp * error + ki * I + kd * steering->dq(0);
 		}

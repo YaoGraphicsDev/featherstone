@@ -156,7 +156,7 @@
 				{
 					"staticFriction":0.02403843402862549,
 					"dynamicFriction":0.02403843402862549,
-					"restitution":0.5102752447128296
+					"restitution":0.3227752447128296
 				},
 				{
 					"staticFriction":0.5,
@@ -166,12 +166,17 @@
 				{
 					"staticFriction":0.2211538553237915,
 					"dynamicFriction":0.2211538553237915,
-					"restitution":0.5913461446762085
+					"restitution":0.182692289352417
 				},
 				{
 					"staticFriction":0.19711539149284363,
 					"dynamicFriction":0.19711539149284363,
-					"restitution":0.5625
+					"restitution":0.19711539149284363
+				},
+				{
+					"staticFriction":0.02403843402862549,
+					"dynamicFriction":0.02403843402862549,
+					"restitution":0.12565985321998596
 				}
 			],
 			"collisionFilters":[
@@ -1688,7 +1693,7 @@
 						"geometry":{
 							"shape":13
 						},
-						"physicsMaterial":3,
+						"physicsMaterial":7,
 						"collisionFilter":0
 					}
 				}
