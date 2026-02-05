@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 	// PI control parameters
 	float kp = -60.0f;
 	float ki = -25.0f;
-	float kd = -30.0f;
+	float kd = -20.0f;
 	float full_steer = glm::pi<float>() * 0.1f;
 
 	float wheel_rotate_target = 0.0f;
