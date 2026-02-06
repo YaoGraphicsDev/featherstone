@@ -27,19 +27,41 @@ Streamlines physics asset creation and the simulation pipeline by supporting con
 
 | Joint Type | Dynamics Model | Support Loop Closure | Support Spring |
 |----|---|---|---|
-| Revolute | Motion subspace | Y | Y |
-| Prismatic | Motion subspace | Y | Y |
-| Cylindrical | Motion subspace | Y | Y (both DoFs) |
-| Spherical | Motion subspace | Y | N |
-| Gear | Coupling 2 revolutes | N | N |
-| Rack and Pinion | Coupling a revolute and a prismatic | N | N |
-| Screw | Coupling the 2 DoFs of a cylindrical | N | N |
-| Worm | Coupling linear DoF of a cylindrical and a revolute | N | N |
+| Revolute | Motion subspace | ✅ | ✅ |
+| Prismatic | Motion subspace | ✅ | ✅ |
+| Cylindrical | Motion subspace | ✅ | ✅ *both DoFs |
+| Spherical | Motion subspace | ✅ | ❌ |
+| Gear | Coupling 2 revolutes | ❌ | ✅ *both  joints |
+| Rack and Pinion | Coupling a revolute and a prismatic | ❌ | ✅ *both joints |
+| Screw | Coupling the 2 DoFs of a cylindrical | ❌ | ✅ *both DoFs |
+| Worm | Coupling linear DoF of a cylindrical and a revolute | ❌ | ✅ *all DoFs and joints |
+
+- A spring cannot be applied to a joint when the joint is a loop closure.
 
 ## Demos
-[Video link](https://youtu.be/xugRWBTrx6c)
+
+[YouTube link](https://youtu.be/xugRWBTrx6c)
+
+What each of these demos demonstrates
+| Name | Demo | Articulated | Loop Closure | Spring | Coupling | Spherical Joint | Trivial PID Control |
+|---|---|---|---|---|---|---|---|
+| Scissor Lift | <img src="media/scissor_lift.gif" width="640"/> | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Worm Screw Jack | <img src="media/worm_screw_jack.gif" width="640"/>  | ✅ | ✅ | ❌ | ✅*heavy | ❌ | ✅ |
+| Spring Scale | <img src="media/spring_scale.gif" width="640"/> | ✅ | ❌ | ✅*stiff | ✅ | ❌ | ❌ |
+| Double Wishbone Suspension | <img src="media/double_wishbone.gif" width="640"/> | ✅ | ✅ |  ❌ |✅*stiff | ✅ | ✅ |
+| Collision and Scene Test | <img src="media/wrecking_ball.gif" width="640"/> | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Spring Test | <img src="media/spring_test.gif" width="640"/> | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Spherical Joint Test | <img src="media/spherical_test.gif" width="640"/> | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
 
 ## Next Steps
+Articulated Body Physics Engine Demos
+
+YouTube doesn't allow me to post active links due to my channel being relatively new.
+Any link pasted here also gets cut short.
+So please go search my profile and repo on GitHub, thanks.
+
+GitHub profile: YaoGraphicsDev
+Repository: featherstone
 
 - Expand joint types (e.g., fixed joints, 6-DoF joints)
 - Inverse dynamics and inverse kinematics for more sophisticated control
