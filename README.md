@@ -48,9 +48,9 @@ What each of these demos demonstrates
 | Scissor Lift | <img src="media/scissor_lift.gif" width="640"/> | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Worm Screw Jack | <img src="media/worm_screw_jack.gif" width="640"/>  | ✅ | ✅ | ❌ | ✅*heavy | ❌ | ✅ |
 | Spring Scale | <img src="media/spring_scale.gif" width="640"/> | ✅ | ❌ | ✅*stiff | ✅ | ❌ | ❌ |
-| Double Wishbone Suspension | <img src="media/double_wishbone.gif" width="640"/> | ✅ | ✅ |  ❌ |✅*stiff | ✅ | ✅ |
+| Double Wishbone Suspension | <img src="media/double_wishbone.gif" width="640"/> | ✅ | ✅ |  ❌ |✅ | ✅ | ✅ |
 | Collision and Scene Test | <img src="media/wrecking_ball.gif" width="640"/> | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Spring Test | <img src="media/spring_test.gif" width="640"/> | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Spring Test | <img src="media/spring_test.gif" width="640"/> | ✅ | ✅ | ✅*stiff | ❌ | ❌ | ❌ |
 | Spherical Joint Test | <img src="media/spherical_test.gif" width="640"/> | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
 
 ## Next Steps
