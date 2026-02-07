@@ -48,20 +48,12 @@ What each of these demos demonstrates
 | Scissor Lift | <img src="media/scissor_lift.gif" width="320"/> | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Worm Screw Jack | <img src="media/worm_screw_jack.gif" width="320"/>  | ✅ | ✅ | ❌ | ✅*heavy | ❌ | ✅ |
 | Spring Scale | <img src="media/spring_scale.gif" width="320"/> | ✅ | ❌ | ✅*stiff | ✅ | ❌ | ❌ |
-| Double Wishbone Suspension | <img src="media/double_wishbone.gif" width="320"/> | ✅ | ✅ |  ❌ |✅ | ✅ | ✅ |
+| Double Wishbone Suspension | <img src="media/double_wishbone.gif" width="320"/> | ✅ | ✅ | ✅ ❌ | ✅ | ✅ |
 | Collision and Scene Test | <img src="media/wrecking_ball.gif" width="320"/> | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Spring Test | <img src="media/spring_test.gif" width="320"/> | ✅ | ✅ | ✅*stiff | ❌ | ❌ | ❌ |
 | Spherical Joint Test | <img src="media/spherical_test.gif" width="320"/> | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
 
 ## Next Steps
-Articulated Body Physics Engine Demos
-
-YouTube doesn't allow me to post active links due to my channel being relatively new.
-Any link pasted here also gets cut short.
-So please go search my profile and repo on GitHub, thanks.
-
-GitHub profile: YaoGraphicsDev
-Repository: featherstone
 
 - Expand joint types (e.g., fixed joints, 6-DoF joints)
 - Inverse dynamics and inverse kinematics for more sophisticated control
