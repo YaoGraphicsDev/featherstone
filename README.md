@@ -53,6 +53,42 @@ What each of these demos demonstrates
 | Spring Test | <img src="media/spring_test.gif" width="200"/> | ✅ | ✅ | ✅*stiff | ❌ | ❌ | ❌ |
 | Spherical Joint Test | <img src="media/spherical_test.gif" width="200"/> | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
 
+## Dependencies
+
+- BulletCollision, [Bullet v3.25](https://github.com/bulletphysics/bullet3/tree/3.25)  
+  Only the collision detection components are used. Collision resolution is implemented separately within this project.  
+  Refer to `third_party/bullet` for build instructions.
+
+- [nlohmann/json v3.12.0](https://github.com/nlohmann/json/tree/v3.12.0)
+
+- [raylib v5.5](https://github.com/raysan5/raylib/tree/5.5)
+
+- [tinygltf v2.9.5](https://github.com/syoyo/tinygltf/tree/v2.9.5)
+
+- [Eigen v3.4.0](https://libeigen.gitlab.io/)  
+  Used for core Featherstone dynamics.
+
+- [glm v1.0.1](https://github.com/g-truc/glm/tree/1.0.1)  
+  Used alongside raylib for rendering utilities.
+
+## Build
+
+### Required CMake Parameters
+
+The following CMake cache variables must be specified if the libraries are not installed system-wide:
+
+- `EIGEN3_INCLUDE_DIR` — Path to the Eigen include directory  
+- `GLM_INCLUDE_DIR` — Path to the GLM include directory  
+
+### Example (Windows – Visual Studio 2022)
+
+```
+cmake -DEIGEN3_INCLUDE_DIR=[your Eigen directory] -DGLM_INCLUDE_DIR=[your GLM directory]  .. -G "Visual Studio 17 2022"
+```
+
+### Tested On
+- Windows 10 / Visual Studio 2022
+
 ## Next Steps
 
 - Expand joint types (e.g., fixed joints, 6-DoF joints)
@@ -61,3 +97,4 @@ What each of these demos demonstrates
 - Coulomb friction formulated as a linear complementarity problem (LCP)
 - Joint limits with impulse-based enforcement
 - Rotational friction models at contact points
+- CCD (Continuous Collision Detection)
