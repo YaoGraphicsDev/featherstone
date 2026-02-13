@@ -40,7 +40,7 @@ Streamlines physics asset creation and the simulation pipeline by supporting con
 
 ## Demos
 
-[YouTube link](https://youtu.be/xugRWBTrx6c)
+[YouTube link](https://youtu.be/TsA-T2HCiWk?si=z3cJ5hv-X0rLl-0R)
 
 What each of these demos demonstrates
 | Name | Demo | Articulated | Loop Closure | Spring | Coupling | Spherical Joint | Trivial PID Control |
