@@ -71,6 +71,13 @@ What each of these demos demonstrates
 - [glm v1.0.1](https://github.com/g-truc/glm/tree/1.0.1)  
   Used alongside raylib for rendering utilities.
 
+- [glTF_Physics_Blender_Exporter v0.5.4](https://github.com/eoineoineoin/glTF_Physics_Blender_Exporter/tree/0.5.4)  
+  Install this exporter in Blender if you need to generate physics-enabled assets.  
+  Note that there are certain limitations and caveats in the asset generation process. These will either be resolved in future updates or documented separately in an instruction guide.  
+
+  *glTF Physics is **not** an official feature supported by the glTF specification.*
+
+
 ## Build
 
 ### Required CMake Parameters
