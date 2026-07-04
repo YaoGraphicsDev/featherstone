@@ -17,7 +17,7 @@ Supports coupling across joints and degrees of freedom by modeling coupling as l
 Solves contacts using an impulse-based approach, implementing Projected Gauss–Seidel (PGS) with Sequential Impulses (SI) and impulse warm starting. Impulses transmitted across loop-closure joints are also accounted for during collision handling.
 
 ### Springs
-Solves spring forces using a semi-implicit Euler integration scheme, improving numerical stability and preventing blow-up for stiff springs.
+Solves spring forces using semi-implicit Euler, improving numerical stability and preventing blow-up for stiff springs.
 
 ### glTF-based physics asset pipeline
 Streamlines physics asset creation and the simulation pipeline by supporting construction of a physics world from glTF physics assets exported from Blender.
